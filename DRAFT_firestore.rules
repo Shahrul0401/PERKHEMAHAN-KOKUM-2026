@@ -1,0 +1,199 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Global Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'eil040711@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Validation Blueprint: CampWorkspace
+    function isValidCampWorkspace(data) {
+      return data.keys().hasAll([
+          'campId',
+          'ownerId',
+          'updatedByUid',
+          'updatedByName',
+          'lastAction',
+          'exploraceScores',
+          'ikhtiarScores',
+          'kawadScores',
+          'schedule',
+          'stations',
+          'ajkList',
+          'awards',
+          'oprMeta',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.keys().hasOnly([
+          'campId',
+          'ownerId',
+          'updatedByUid',
+          'updatedByName',
+          'lastAction',
+          'exploraceScores',
+          'ikhtiarScores',
+          'kawadScores',
+          'schedule',
+          'stations',
+          'ajkList',
+          'awards',
+          'oprMeta',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        isValidId(data.campId) &&
+        isValidId(data.ownerId) &&
+        isValidId(data.updatedByUid) &&
+        data.updatedByUid == request.auth.uid &&
+        data.updatedByName is string && data.updatedByName.size() >= 1 && data.updatedByName.size() <= 120 &&
+        data.lastAction is string && data.lastAction.size() >= 1 && data.lastAction.size() <= 300 &&
+        data.exploraceScores is map && data.exploraceScores.size() <= 20 &&
+        data.ikhtiarScores is map && data.ikhtiarScores.size() <= 20 &&
+        data.kawadScores is map && data.kawadScores.size() <= 10 &&
+        data.schedule is list && data.schedule.size() <= 60 &&
+        (data.schedule.size() == 0 || data.schedule[0] is map) &&
+        data.stations is list && data.stations.size() <= 20 &&
+        (data.stations.size() == 0 || data.stations[0] is map) &&
+        data.ajkList is list && data.ajkList.size() <= 60 &&
+        (data.ajkList.size() == 0 || data.ajkList[0] is map) &&
+        data.awards is list && data.awards.size() <= 40 &&
+        (data.awards.size() == 0 || data.awards[0] is map) &&
+        data.oprMeta is map && data.oprMeta.size() <= 25 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isSyncWorkspaceUpdateAction() {
+      return incoming().campId == existing().campId &&
+        incoming().ownerId == existing().ownerId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time;
+    }
+
+    // Validation Blueprint: SyncLogEntry
+    function isValidSyncLogEntry(data) {
+      return data.keys().hasAll([
+          'logId',
+          'campId',
+          'ownerId',
+          'actor',
+          'description',
+          'timestampLabel',
+          'createdAt'
+        ]) &&
+        data.keys().hasOnly([
+          'logId',
+          'campId',
+          'ownerId',
+          'actor',
+          'description',
+          'timestampLabel',
+          'createdAt'
+        ]) &&
+        isValidId(data.logId) &&
+        isValidId(data.campId) &&
+        isValidId(data.ownerId) &&
+        data.ownerId == request.auth.uid &&
+        data.actor is string && data.actor.size() >= 1 && data.actor.size() <= 120 &&
+        data.description is string && data.description.size() >= 1 && data.description.size() <= 300 &&
+        data.timestampLabel is string && data.timestampLabel.size() >= 1 && data.timestampLabel.size() <= 40 &&
+        data.createdAt is timestamp;
+    }
+
+    // Collection 1: /campWorkspaces/{campId}
+    match /campWorkspaces/{campId} {
+      allow get: if isSignedIn() && isValidId(campId) && (
+        existing().ownerId == request.auth.uid ||
+        existing().campId == 'sk_lupak_2026' ||
+        isAdmin()
+      );
+
+      allow list: if false;
+
+      allow create: if isSignedIn() &&
+        isValidId(campId) &&
+        isValidCampWorkspace(incoming()) &&
+        incoming().campId == campId &&
+        incoming().ownerId == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isSignedIn() &&
+        isValidId(campId) &&
+        isValidCampWorkspace(incoming()) && (
+          isAdmin() ||
+          (
+            isSyncWorkspaceUpdateAction() &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'updatedByUid',
+              'updatedByName',
+              'lastAction',
+              'exploraceScores',
+              'ikhtiarScores',
+              'kawadScores',
+              'schedule',
+              'stations',
+              'ajkList',
+              'awards',
+              'oprMeta',
+              'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isAdmin() && isValidId(campId);
+
+      // Subcollection 2: /campWorkspaces/{campId}/syncLogs/{logId}
+      match /syncLogs/{logId} {
+        allow get: if isSignedIn() &&
+          isValidId(campId) &&
+          isValidId(logId) &&
+          (existing().ownerId == request.auth.uid || existing().campId == 'sk_lupak_2026') &&
+          exists(/databases/$(database)/documents/campWorkspaces/$(campId));
+
+        allow list: if isSignedIn() && (
+          existing().ownerId == request.auth.uid ||
+          existing().campId == 'sk_lupak_2026'
+        );
+
+        allow create: if isSignedIn() &&
+          isValidId(campId) &&
+          isValidId(logId) &&
+          isValidSyncLogEntry(incoming()) &&
+          incoming().logId == logId &&
+          incoming().campId == campId &&
+          incoming().createdAt == request.time &&
+          exists(/databases/$(database)/documents/campWorkspaces/$(campId));
+
+        allow update: if false;
+        allow delete: if isAdmin() && isValidId(campId) && isValidId(logId);
+      }
+    }
+  }
+}

@@ -1,0 +1,177 @@
+{
+  "entities": {
+    "CampWorkspace": {
+      "title": "CampWorkspace",
+      "description": "Data utama Perkhemahan Kokurikulum SK Lupak 2026 termasuk jadual, stesen explorace, markah kumpulan, senarai AJK, anugerah, dan laporan OPR.",
+      "type": "object",
+      "properties": {
+        "campId": {
+          "type": "string",
+          "description": "ID unik dokumen perkhemahan (sk_lupak_2026).",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID pengguna pencipta asal rekod.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedByUid": {
+          "type": "string",
+          "description": "UID guru yang melakukan kemas kini terakhir.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedByName": {
+          "type": "string",
+          "description": "Nama paparan guru yang melakukan kemas kini terakhir.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "lastAction": {
+          "type": "string",
+          "description": "Keterangan ringkas tindakan penyegerakan terakhir.",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "exploraceScores": {
+          "type": "object",
+          "description": "Peta markah Explorace mengikut ID kumpulan dan ID stesen."
+        },
+        "ikhtiarScores": {
+          "type": "object",
+          "description": "Peta markah Ikhtiar Hidup (Masakan Rimba) mengikut ID kumpulan."
+        },
+        "kawadScores": {
+          "type": "object",
+          "description": "Peta markah Pertandingan Kawad Kaki mengikut ID unit beruniform."
+        },
+        "schedule": {
+          "type": "array",
+          "description": "Senarai slot jadual 3 hari perkhemahan (maksimum 60 item)."
+        },
+        "stations": {
+          "type": "array",
+          "description": "Senarai stesen aktiviti Explorace (maksimum 20 stesen)."
+        },
+        "ajkList": {
+          "type": "array",
+          "description": "Senarai jawatankuasa induk dan kerja perkhemahan (maksimum 60 item)."
+        },
+        "awards": {
+          "type": "array",
+          "description": "Senarai kategori dan penerima anugerah perkhemahan (maksimum 40 item)."
+        },
+        "oprMeta": {
+          "type": "object",
+          "description": "Data teks laporan One Page Report (OPR) termasuk nama penyedia, penyemak, dan pengesah."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Masa ciptaan pelayan."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Masa kemas kini pelayan terakhir."
+        }
+      },
+      "required": [
+        "campId",
+        "ownerId",
+        "updatedByUid",
+        "updatedByName",
+        "lastAction",
+        "exploraceScores",
+        "ikhtiarScores",
+        "kawadScores",
+        "schedule",
+        "stations",
+        "ajkList",
+        "awards",
+        "oprMeta",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "SyncLogEntry": {
+      "title": "SyncLogEntry",
+      "description": "Rekod aktiviti penyegerakan data guru semasa Perkhemahan Kokurikulum SK Lupak 2026.",
+      "type": "object",
+      "properties": {
+        "logId": {
+          "type": "string",
+          "description": "ID unik log penyegerakan.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "campId": {
+          "type": "string",
+          "description": "ID rujukan dokumen induk perkhemahan.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID pengguna yang mencipta rekod log.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "actor": {
+          "type": "string",
+          "description": "Nama guru atau pengguna.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "description": {
+          "type": "string",
+          "description": "Butiran perubahan markah atau maklumat kem.",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "timestampLabel": {
+          "type": "string",
+          "description": "Masa paparan tempatan.",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Masa ciptaan pelayan."
+        }
+      },
+      "required": [
+        "logId",
+        "campId",
+        "ownerId",
+        "actor",
+        "description",
+        "timestampLabel",
+        "createdAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/campWorkspaces/{campId}": {
+      "schema": {
+        "$ref": "#/entities/CampWorkspace"
+      },
+      "description": "Menyimpan dokumen tunggal ruang kerja utama Perkhemahan Kokurikulum SK Lupak 2026."
+    },
+    "/campWorkspaces/{campId}/syncLogs/{logId}": {
+      "schema": {
+        "$ref": "#/entities/SyncLogEntry"
+      },
+      "description": "Menyimpan log aktiviti penyegerakan bagi ruang kerja perkhemahan."
+    }
+  }
+}

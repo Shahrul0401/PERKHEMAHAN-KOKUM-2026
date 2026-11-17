@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bgGlow" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0b2246"/>
+      <stop offset="55%" stop-color="#0d2b3e"/>
+      <stop offset="100%" stop-color="#07162c"/>
+    </linearGradient>
+    <filter id="drop" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- Rounded App Icon Base -->
+  <rect width="512" height="512" rx="110" fill="url(#bgGlow)"/>
+  <rect x="10" y="10" width="492" height="492" rx="100" stroke="#f5c427" stroke-opacity="0.35" stroke-width="4"/>
+
+  <g filter="url(#drop)">
+    <!-- Outer Shield Outline -->
+    <path d="M126 78 C175 78 215 66 256 48 C297 66 337 78 386 78 L386 248 C386 332 325 388 256 416 C187 388 126 332 126 248 Z" fill="#ffffff" stroke="#111827" stroke-width="8"/>
+
+    <!-- Top-Left Quadrant (Green) -->
+    <path d="M134 86 C178 86 216 75 256 58 L256 218 L134 218 Z" fill="#15803d"/>
+
+    <!-- Top-Right Quadrant (Yellow) -->
+    <path d="M256 58 C296 75 334 86 378 86 L378 218 L256 218 Z" fill="#facc15"/>
+
+    <!-- Bottom-Left Quadrant (Yellow) -->
+    <path d="M134 218 L256 218 L256 406 C192 380 134 326 134 248 Z" fill="#facc15"/>
+
+    <!-- Bottom-Right Quadrant (Green) -->
+    <path d="M256 218 L378 218 L378 248 C378 326 320 380 256 406 Z" fill="#15803d"/>
+
+    <!-- Center Vertical Divider -->
+    <line x1="256" y1="58" x2="256" y2="406" stroke="#111827" stroke-width="6"/>
+
+    <!-- Top-Left Icon: Red Torch with Flame -->
+    <path d="M188 148 L204 148 L199 188 L193 188 Z" fill="#7c2d12" stroke="#111827" stroke-width="3"/>
+    <ellipse cx="196" cy="145" rx="16" ry="6" fill="#dc2626" stroke="#111827" stroke-width="3"/>
+    <path d="M196 102 C212 118 214 132 204 142 C198 146 190 145 186 139 C178 128 184 114 196 102 Z" fill="#ef4444" stroke="#facc15" stroke-width="2"/>
+
+    <!-- Top-Right Icon: Open Book -->
+    <path d="M282 124 Q298 118 314 126 L314 170 Q298 162 282 168 Z" fill="#ffffff" stroke="#111827" stroke-width="4"/>
+    <path d="M346 124 Q330 118 314 126 L314 170 Q330 162 346 168 Z" fill="#ffffff" stroke="#111827" stroke-width="4"/>
+    <line x1="289" y1="138" x2="307" y2="140" stroke="#111827" stroke-width="3"/>
+    <line x1="289" y1="150" x2="307" y2="152" stroke="#111827" stroke-width="3"/>
+    <line x1="321" y1="140" x2="339" y2="138" stroke="#111827" stroke-width="3"/>
+    <line x1="321" y1="152" x2="339" y2="150" stroke="#111827" stroke-width="3"/>
+
+    <!-- Bottom-Left Icon: 3 Interlocking Rings -->
+    <circle cx="188" cy="296" r="18" fill="none" stroke="#ffffff" stroke-width="7"/>
+    <circle cx="188" cy="296" r="18" fill="none" stroke="#111827" stroke-width="2.5"/>
+    <circle cx="214" cy="296" r="18" fill="none" stroke="#ffffff" stroke-width="7"/>
+    <circle cx="214" cy="296" r="18" fill="none" stroke="#111827" stroke-width="2.5"/>
+    <circle cx="201" cy="318" r="18" fill="none" stroke="#ffffff" stroke-width="7"/>
+    <circle cx="201" cy="318" r="18" fill="none" stroke="#111827" stroke-width="2.5"/>
+
+    <!-- Bottom-Right Icon: Microscope -->
+    <path d="M294 338 L336 338 L332 328 L298 328 Z" fill="#ffffff" stroke="#111827" stroke-width="3.5"/>
+    <path d="M316 276 L306 310 L316 314 L326 280 Z" fill="#ffffff" stroke="#111827" stroke-width="3.5"/>
+    <path d="M318 292 C332 298 334 316 320 328" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+
+    <!-- Center Red Horizontal Ribbon: SEK KEB LUPAK -->
+    <rect x="128" y="196" width="256" height="44" rx="6" fill="#ef4444" stroke="#111827" stroke-width="5"/>
+    <text x="256" y="225" text-anchor="middle" fill="#ffffff" font-family="sans-serif" font-weight="900" font-size="25" letter-spacing="1.5">SEK KEB LUPAK</text>
+
+    <!-- Bottom Blue Scroll Ribbon: ILMU PELITA HIDUP -->
+    <path d="M92 382 Q174 446 256 446 Q338 446 420 382 L396 356 Q326 410 256 410 Q186 410 116 356 Z" fill="#1d4ed8" stroke="#ffffff" stroke-width="5"/>
+    <text x="256" y="424" text-anchor="middle" fill="#ffffff" font-family="sans-serif" font-weight="800" font-size="19" letter-spacing="2">ILMU PELITA HIDUP</text>
+  </g>
+</svg>

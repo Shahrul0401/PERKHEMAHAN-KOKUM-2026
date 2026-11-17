@@ -1,0 +1,6 @@
+{
+  "name": "Perkhemahan Kokurikulum SK Lupak 2026",
+  "description": "Sistem Pengurusan, Jadual, Pemarkahan Pantas (Explorace, Ikhtiar Hidup, Kawad Kaki), Senarai AJK, Anugerah & Jana PDF OPR Perkhemahan Kokurikulum SK Lupak 2026.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
