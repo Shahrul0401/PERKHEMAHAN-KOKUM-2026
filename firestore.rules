@@ -31,6 +31,13 @@ service cloud.firestore {
       );
     }
 
+    function isMatchingActorId(actorUid) {
+      return isValidId(actorUid) && (
+        (request.auth != null && actorUid == request.auth.uid) ||
+        (request.auth == null && actorUid.matches('^guru_[a-zA-Z0-9_\\-]+$'))
+      );
+    }
+
     // Validation Blueprint: CampWorkspace
     function isValidCampWorkspace(data) {
       return data.keys().hasAll([
@@ -68,9 +75,9 @@ service cloud.firestore {
           'updatedAt'
         ]) &&
         isValidId(data.campId) &&
+        data.campId == 'sk_lupak_2026' &&
         isValidId(data.ownerId) &&
-        isValidId(data.updatedByUid) &&
-        data.updatedByUid == request.auth.uid &&
+        isMatchingActorId(data.updatedByUid) &&
         data.updatedByName is string && data.updatedByName.size() >= 1 && data.updatedByName.size() <= 120 &&
         data.lastAction is string && data.lastAction.size() >= 1 && data.lastAction.size() <= 300 &&
         data.exploraceScores is map && data.exploraceScores.size() <= 20 &&
@@ -118,8 +125,8 @@ service cloud.firestore {
         ]) &&
         isValidId(data.logId) &&
         isValidId(data.campId) &&
-        isValidId(data.ownerId) &&
-        data.ownerId == request.auth.uid &&
+        data.campId == 'sk_lupak_2026' &&
+        isMatchingActorId(data.ownerId) &&
         data.actor is string && data.actor.size() >= 1 && data.actor.size() <= 120 &&
         data.description is string && data.description.size() >= 1 && data.description.size() <= 300 &&
         data.timestampLabel is string && data.timestampLabel.size() >= 1 && data.timestampLabel.size() <= 40 &&
@@ -128,24 +135,20 @@ service cloud.firestore {
 
     // Collection 1: /campWorkspaces/{campId}
     match /campWorkspaces/{campId} {
-      allow get: if isSignedIn() && isValidId(campId) && (
-        existing().ownerId == request.auth.uid ||
-        existing().campId == 'sk_lupak_2026' ||
-        isAdmin()
-      );
+      allow get: if isValidId(campId) && campId == 'sk_lupak_2026';
 
       allow list: if false;
 
-      allow create: if isSignedIn() &&
-        isValidId(campId) &&
+      allow create: if isValidId(campId) &&
+        campId == 'sk_lupak_2026' &&
         isValidCampWorkspace(incoming()) &&
         incoming().campId == campId &&
-        incoming().ownerId == request.auth.uid &&
+        isMatchingActorId(incoming().ownerId) &&
         incoming().createdAt == request.time &&
         incoming().updatedAt == request.time;
 
-      allow update: if isSignedIn() &&
-        isValidId(campId) &&
+      allow update: if isValidId(campId) &&
+        campId == 'sk_lupak_2026' &&
         isValidCampWorkspace(incoming()) && (
           isAdmin() ||
           (
@@ -171,19 +174,14 @@ service cloud.firestore {
 
       // Subcollection 2: /campWorkspaces/{campId}/syncLogs/{logId}
       match /syncLogs/{logId} {
-        allow get: if isSignedIn() &&
-          isValidId(campId) &&
+        allow get: if isValidId(campId) &&
           isValidId(logId) &&
-          (existing().ownerId == request.auth.uid || existing().campId == 'sk_lupak_2026') &&
+          existing().campId == 'sk_lupak_2026' &&
           exists(/databases/$(database)/documents/campWorkspaces/$(campId));
 
-        allow list: if isSignedIn() && (
-          existing().ownerId == request.auth.uid ||
-          existing().campId == 'sk_lupak_2026'
-        );
+        allow list: if existing().campId == 'sk_lupak_2026';
 
-        allow create: if isSignedIn() &&
-          isValidId(campId) &&
+        allow create: if isValidId(campId) &&
           isValidId(logId) &&
           isValidSyncLogEntry(incoming()) &&
           incoming().logId == logId &&

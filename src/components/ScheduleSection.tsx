@@ -181,7 +181,7 @@ export const ScheduleSection: React.FC<ScheduleSectionProps> = ({
             <span>24–26 NOVEMBER 2026</span>
           </div>
           <h2 className="mt-1 font-display font-bold text-base sm:text-xl lg:text-2xl text-white leading-snug">
-            Jadual &amp; Aturcara Program Perkhemahan (3 Hari)
+            Jadual &amp; Aturcara Program Perkhemahan
           </h2>
           <p className="mt-1 text-[11px] sm:text-sm text-slate-300 leading-relaxed">
             Susunan lengkap 5 LDK, Pertandingan Explorace, Ikhtiar Hidup, Kawad Kaki &amp; Majlis Penutup SK Lupak.
@@ -212,7 +212,7 @@ export const ScheduleSection: React.FC<ScheduleSectionProps> = ({
             }`}
           >
             <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
-            <span>Jadual Penuh 3 Hari</span>
+            <span>Jadual Penuh</span>
           </button>
         </div>
       </div>

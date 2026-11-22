@@ -17,6 +17,25 @@ export const CAMP_DOC_ID = 'sk_lupak_2026';
 export const CAMP_WORKSPACE_PATH = `campWorkspaces/${CAMP_DOC_ID}`;
 export const CAMP_SYNC_LOGS_PATH = `campWorkspaces/${CAMP_DOC_ID}/syncLogs`;
 
+const DEVICE_UID_KEY = 'sk_lupak_2026_device_actor_uid_v1';
+
+export function getOrCreateDeviceActorId(): string {
+  try {
+    const existing = localStorage.getItem(DEVICE_UID_KEY);
+    if (existing && /^guru_[a-zA-Z0-9_-]+$/.test(existing)) {
+      return existing;
+    }
+    const generated = `guru_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`.replace(
+      /[^a-zA-Z0-9_-]/g,
+      ''
+    );
+    localStorage.setItem(DEVICE_UID_KEY, generated);
+    return generated;
+  } catch {
+    return 'guru_sk_lupak_default';
+  }
+}
+
 function sanitizeString(val: string | undefined, maxLen: number, fallback: string): string {
   const trimmed = (val || '').trim();
   const base = trimmed.length > 0 ? trimmed : fallback;
@@ -36,13 +55,12 @@ function buildOprMeta(opr: OPRReportData): Record<string, unknown> {
     ringkasanAktiviti: sanitizeString(opr.ringkasanAktiviti, 1500, '-'),
     kekuatan: sanitizeString(opr.kekuatan, 1000, '-'),
     penambahbaikan: sanitizeString(opr.penambahbaikan, 1000, '-'),
-    disediakanOleh: sanitizeString(opr.disediakanOleh, 120, 'ALIF AKRAM BIN NOR KASANI'),
-    jawatanPenyedia: sanitizeString(opr.jawatanPenyedia, 120, 'Penyelaras Kem Perkhemahan SK Lupak 2026'),
-    disemakOleh: sanitizeString(opr.disemakOleh, 120, 'EN. HARUN BIN HJ SUNTRAK'),
-    jawatanPenyemak: sanitizeString(opr.jawatanPenyemak, 120, 'Penolong Kanan Kokurikulum (PKKK) SK Lupak'),
-    disahkanOleh: sanitizeString(opr.disahkanOleh, 120, 'TN. HJ SABLI BIN MD JANEH'),
+    disediakanOleh: sanitizeString(opr.disediakanOleh, 120, 'EN JAMALUDIN BIN JAPAR'),
+    jawatanPenyedia: sanitizeString(opr.jawatanPenyedia, 120, 'Setiausaha Program Perkhemahan SK Lupak 2026'),
+    disemakOleh: sanitizeString(opr.disemakOleh, 120, 'EN HARUN BIN HJ SUNTRAK'),
+    jawatanPenyemak: sanitizeString(opr.jawatanPenyemak, 120, 'Penolong Kanan Kokurikulum SK Lupak'),
+    disahkanOleh: sanitizeString(opr.disahkanOleh, 120, 'TN HJ SABLI BIN MD JANEH'),
     jawatanPengesah: sanitizeString(opr.jawatanPengesah, 120, 'Guru Besar SK Lupak'),
-    // Keep only non-oversized URLs in Firestore to respect the 1MB document limit
     photos: (opr.photos || []).slice(0, 4).map((p) => ({
       id: sanitizeString(p.id, 64, 'photo'),
       caption: sanitizeString(p.caption, 200, 'Aktiviti Perkhemahan'),
@@ -53,13 +71,14 @@ function buildOprMeta(opr: OPRReportData): Record<string, unknown> {
 }
 
 export async function pushCampStateToFirestore(
-  user: User,
+  user: User | null,
   state: CampAppState,
   lastActionDesc: string
 ): Promise<void> {
   const docRef = doc(db, 'campWorkspaces', CAMP_DOC_ID);
+  const actorUid = user ? user.uid : getOrCreateDeviceActorId();
   const updatedByName = sanitizeString(
-    user.displayName || user.email || 'Guru SK Lupak',
+    user?.displayName || user?.email || 'Guru SK Lupak',
     120,
     'Guru SK Lupak'
   );
@@ -78,7 +97,7 @@ export async function pushCampStateToFirestore(
   }
 
   const sharedFields = {
-    updatedByUid: user.uid,
+    updatedByUid: actorUid,
     updatedByName,
     lastAction,
     exploraceScores: state.exploraceScores || {},
@@ -96,7 +115,7 @@ export async function pushCampStateToFirestore(
     try {
       await setDoc(docRef, {
         campId: CAMP_DOC_ID,
-        ownerId: user.uid,
+        ownerId: actorUid,
         ...sharedFields,
         createdAt: serverTimestamp(),
       });
@@ -111,7 +130,6 @@ export async function pushCampStateToFirestore(
     }
   }
 
-  // Record audit log entry in subcollection
   const cleanLogId = `log_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`.replace(
     /[^a-zA-Z0-9_-]/g,
     ''
@@ -121,7 +139,7 @@ export async function pushCampStateToFirestore(
     await setDoc(logDocRef, {
       logId: cleanLogId,
       campId: CAMP_DOC_ID,
-      ownerId: user.uid,
+      ownerId: actorUid,
       actor: updatedByName,
       description: lastAction,
       timestampLabel: sanitizeString(
@@ -141,13 +159,20 @@ export async function pushCampStateToFirestore(
 }
 
 export function subscribeToCampWorkspace(
-  onData: (remoteData: Partial<CampAppState>, meta: { updatedByName: string; lastAction: string }) => void
+  onData: (
+    remoteData: Partial<CampAppState>,
+    meta: { updatedByName: string; lastAction: string }
+  ) => void,
+  onEmptyInit?: () => void
 ): () => void {
   const docRef = doc(db, 'campWorkspaces', CAMP_DOC_ID);
   return onSnapshot(
     docRef,
     (snapshot) => {
-      if (!snapshot.exists()) return;
+      if (!snapshot.exists()) {
+        if (onEmptyInit) onEmptyInit();
+        return;
+      }
       const data = snapshot.data();
       const remoteOpr = (data.oprMeta || {}) as Partial<OPRReportData>;
 
@@ -176,9 +201,7 @@ export function subscribeToCampWorkspace(
   );
 }
 
-export function subscribeToSyncLogs(
-  onLogs: (items: SyncQueueItem[]) => void
-): () => void {
+export function subscribeToSyncLogs(onLogs: (items: SyncQueueItem[]) => void): () => void {
   const q = query(
     collection(db, 'campWorkspaces', CAMP_DOC_ID, 'syncLogs'),
     where('campId', '==', CAMP_DOC_ID)

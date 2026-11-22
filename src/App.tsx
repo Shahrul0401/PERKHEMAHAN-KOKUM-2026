@@ -209,42 +209,54 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Attach Firestore real-time listeners when authenticated and online
+  // Attach Firestore real-time listeners automatically for all users when online
   useEffect(() => {
-    if (!isAuthReady || !firebaseUser || !isOnline) return;
+    if (!isAuthReady || !isOnline) return;
 
-    const unsubWorkspace = subscribeToCampWorkspace((remotePartial, meta) => {
-      setCampState((prev) => {
-        const mergedOpr: OPRReportData = remotePartial.oprData
-          ? {
-              ...prev.oprData,
-              ...remotePartial.oprData,
-              photos: prev.oprData.photos.map((localPhoto, idx) => {
-                const remotePhoto = remotePartial.oprData?.photos?.[idx];
-                if (!remotePhoto) return localPhoto;
-                return {
-                  ...localPhoto,
-                  ...remotePhoto,
-                  dataUrl: remotePhoto.dataUrl || localPhoto.dataUrl,
-                };
-              }),
-            }
-          : prev.oprData;
+    const unsubWorkspace = subscribeToCampWorkspace(
+      (remotePartial, meta) => {
+        setCampState((prev) => {
+          const mergedOpr: OPRReportData = remotePartial.oprData
+            ? {
+                ...prev.oprData,
+                ...remotePartial.oprData,
+                photos: prev.oprData.photos.map((localPhoto, idx) => {
+                  const remotePhoto = remotePartial.oprData?.photos?.[idx];
+                  if (!remotePhoto) return localPhoto;
+                  return {
+                    ...localPhoto,
+                    ...remotePhoto,
+                    dataUrl: remotePhoto.dataUrl || localPhoto.dataUrl,
+                  };
+                }),
+              }
+            : prev.oprData;
 
-        return normalizeCampState({
-          ...prev,
-          exploraceScores: remotePartial.exploraceScores || prev.exploraceScores,
-          ikhtiarScores: remotePartial.ikhtiarScores || prev.ikhtiarScores,
-          kawadScores: remotePartial.kawadScores || prev.kawadScores,
-          schedule: remotePartial.schedule || prev.schedule,
-          stations: remotePartial.stations || prev.stations,
-          ajkList: remotePartial.ajkList || prev.ajkList,
-          awards: remotePartial.awards || prev.awards,
-          oprData: mergedOpr,
+          return normalizeCampState({
+            ...prev,
+            exploraceScores: remotePartial.exploraceScores || prev.exploraceScores,
+            ikhtiarScores: remotePartial.ikhtiarScores || prev.ikhtiarScores,
+            kawadScores: remotePartial.kawadScores || prev.kawadScores,
+            schedule: remotePartial.schedule || prev.schedule,
+            stations: remotePartial.stations || prev.stations,
+            ajkList: remotePartial.ajkList || prev.ajkList,
+            awards: remotePartial.awards || prev.awards,
+            oprData: mergedOpr,
+          });
         });
-      });
-      setLastSyncedAt(`Disegerak Firebase (${meta.updatedByName})`);
-    });
+        setLastSyncedAt(`Auto-Segerak Firebase (${meta.updatedByName})`);
+      },
+      () => {
+        // Seed initial workspace document in Firestore if it does not exist yet
+        pushCampStateToFirestore(
+          firebaseUser,
+          campStateRef.current,
+          'Inisialisasi awal pangkalan data awan SK Lupak 2026'
+        ).catch(() => {
+          // Handled by structured error logger
+        });
+      }
+    );
 
     const unsubLogs = subscribeToSyncLogs((remoteLogs) => {
       setSyncQueue((prev) => {
@@ -298,24 +310,18 @@ export default function App() {
       setIsSyncing(true);
       const timer = setTimeout(async () => {
         try {
-          if (firebaseUser) {
-            await pushCampStateToFirestore(
-              firebaseUser,
-              campStateRef.current,
-              pendingItems[0]?.description || 'Penyegerakan semula luar talian'
-            );
-          }
+          await pushCampStateToFirestore(
+            firebaseUser,
+            campStateRef.current,
+            pendingItems[0]?.description || 'Penyegerakan semula luar talian'
+          );
           setSyncQueue((prev) => prev.map((item) => ({ ...item, synced: true })));
           const nowStr = new Date().toLocaleTimeString('ms-MY', {
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
           });
-          setLastSyncedAt(
-            firebaseUser
-              ? `Disegerak ke Firebase pada ${nowStr}`
-              : `Disegerak automatik pada ${nowStr}`
-          );
+          setLastSyncedAt(`Disegerak ke Firebase pada ${nowStr}`);
         } finally {
           setIsSyncing(false);
         }
@@ -334,7 +340,7 @@ export default function App() {
         await pushCampStateToFirestore(
           cred.user,
           campStateRef.current,
-          'Sambungan awal & penyegerakan ke Firebase Cloud'
+          'Sambungan & penyegerakan ke Firebase Cloud'
         );
         setIsSyncing(false);
       }
@@ -349,11 +355,11 @@ export default function App() {
   const handleGoogleSignOut = async () => {
     setAuthErrorMsg(null);
     await signOut(auth);
-    setLastSyncedAt('Mod Tempatan (Log keluar dari Firebase)');
+    setLastSyncedAt('Auto-Segerak Awan Aktif (Tanpa Akaun Google)');
   };
 
   const handleManualCloudSync = async () => {
-    if (!firebaseUser || !isOnline) return;
+    if (!isOnline) return;
     setIsSyncing(true);
     try {
       await pushCampStateToFirestore(
@@ -372,7 +378,7 @@ export default function App() {
     }
   };
 
-  // Record a mutation in offline-first queue & sync to Firestore when authenticated
+  // Record a mutation in offline-first queue & auto-sync to Firestore immediately when online
   const recordChange = (description: string, nextState: CampAppState) => {
     const actorName =
       firebaseUser?.displayName ||
@@ -392,18 +398,14 @@ export default function App() {
     };
     setSyncQueue((prev) => [newItem, ...prev.slice(0, 39)]);
     if (isOnline) {
-      if (firebaseUser) {
-        setIsSyncing(true);
-        pushCampStateToFirestore(firebaseUser, nextState, description)
-          .then(() => {
-            setLastSyncedAt(`Disimpan ke Firebase (${newItem.timestamp})`);
-          })
-          .finally(() => {
-            setIsSyncing(false);
-          });
-      } else {
-        setLastSyncedAt(`Disimpan & disegerak (${newItem.timestamp})`);
-      }
+      setIsSyncing(true);
+      pushCampStateToFirestore(firebaseUser, nextState, description)
+        .then(() => {
+          setLastSyncedAt(`Auto-Segerak Firebase (${newItem.timestamp})`);
+        })
+        .finally(() => {
+          setIsSyncing(false);
+        });
     }
   };
 
@@ -908,23 +910,23 @@ export default function App() {
                       <Cloud className="w-4 h-4 text-emerald-400 shrink-0" />
                       <div>
                         <p className="text-xs font-bold text-white">
-                          Pangkalan Data Awan Firebase (Firestore)
+                          Auto-Segerak Awan Firebase (Multi-Pengguna)
                         </p>
                         <p className="text-[11px] text-slate-300">
                           {firebaseUser
-                            ? `Disambungkan sebagai ${firebaseUser.displayName || firebaseUser.email}`
-                            : 'Log masuk Google untuk menyegerakkan markah secara masa nyata merentas peranti.'}
+                            ? `Aktif (${firebaseUser.displayName || firebaseUser.email}) — Semua perubahan disegerakkan secara langsung ke semua peranti guru.`
+                            : 'Aktif secara automatik untuk semua guru & peranti. Setiap markah yang dimasukkan terus dikemas kini pada skrin pengguna lain secara masa nyata.'}
                         </p>
                       </div>
                     </div>
                     <span
                       className={`px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${
-                        firebaseUser
+                        isOnline
                           ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
                           : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
                       }`}
                     >
-                      {firebaseUser ? 'Aktif' : 'Tempatan'}
+                      {isOnline ? 'Auto-Segerak' : 'Luar Talian'}
                     </span>
                   </div>
 
@@ -935,6 +937,16 @@ export default function App() {
                   )}
 
                   <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleManualCloudSync}
+                      disabled={isSyncing || !isOnline}
+                      className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/35 text-emerald-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                      <span>Segerak ke Firebase Sekarang</span>
+                    </button>
+
                     {!firebaseUser ? (
                       <button
                         type="button"
@@ -943,28 +955,17 @@ export default function App() {
                         className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#1992f4] to-[#2157e2] hover:brightness-110 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                       >
                         <LogIn className="w-3.5 h-3.5" />
-                        <span>Log Masuk Google (Segerak Firebase)</span>
+                        <span>Log Masuk Google (Pilihan)</span>
                       </button>
                     ) : (
-                      <>
-                        <button
-                          type="button"
-                          onClick={handleManualCloudSync}
-                          disabled={isSyncing || !isOnline}
-                          className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/35 text-emerald-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                        >
-                          <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                          <span>Segerak ke Firebase Sekarang</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleGoogleSignOut}
-                          className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-slate-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-                        >
-                          <LogOut className="w-3.5 h-3.5" />
-                          <span>Log Keluar</span>
-                        </button>
-                      </>
+                      <button
+                        type="button"
+                        onClick={handleGoogleSignOut}
+                        className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-slate-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Log Keluar Google</span>
+                      </button>
                     )}
                   </div>
                 </div>
