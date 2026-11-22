@@ -755,6 +755,28 @@ export default function App() {
     recordChange(desc, next);
   };
 
+  const handleBatchUpdateExploraceStationScores = (
+    stationId: string,
+    stationScoresByGroup: Record<string, number>,
+    desc: string
+  ) => {
+    const prev = campStateRef.current;
+    const nextExploraceScores = { ...prev.exploraceScores };
+    Object.entries(stationScoresByGroup).forEach(([groupId, val]) => {
+      nextExploraceScores[groupId] = {
+        ...(nextExploraceScores[groupId] || {}),
+        [stationId]: val,
+      };
+    });
+    const next: CampAppState = {
+      ...prev,
+      lastUpdated: new Date().toISOString(),
+      exploraceScores: nextExploraceScores,
+    };
+    setCampState(next);
+    recordChange(desc, next);
+  };
+
   const handleUpdateStations = (stations: ExploraceStation[], desc: string) => {
     const next: CampAppState = {
       ...campStateRef.current,
@@ -1092,6 +1114,7 @@ export default function App() {
                 groups={campState.groups}
                 scores={campState.exploraceScores}
                 onUpdateScore={handleUpdateExploraceScore}
+                onSaveStationScores={handleBatchUpdateExploraceStationScores}
                 onUpdateStations={handleUpdateStations}
               />
             )}

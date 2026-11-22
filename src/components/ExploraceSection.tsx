@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import {
+  Check,
+  ClipboardEdit,
   Clock,
   Compass,
   Edit3,
@@ -15,6 +17,7 @@ import {
   X,
   Zap,
 } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { INITIAL_STATIONS } from '../data/initialData';
 import { ExploraceScoresMap, ExploraceStation, GroupInfo } from '../types/camp';
 
@@ -23,6 +26,11 @@ interface ExploraceSectionProps {
   groups: GroupInfo[];
   scores: ExploraceScoresMap;
   onUpdateScore: (groupId: string, stationId: string, val: number, desc: string) => void;
+  onSaveStationScores?: (
+    stationId: string,
+    stationScoresByGroup: Record<string, number>,
+    desc: string
+  ) => void;
   onUpdateStations: (newStations: ExploraceStation[], desc: string) => void;
 }
 
@@ -31,18 +39,23 @@ export const ExploraceSection: React.FC<ExploraceSectionProps> = ({
   groups,
   scores,
   onUpdateScore,
+  onSaveStationScores,
   onUpdateStations,
 }) => {
   const [subTab, setSubTab] = useState<'QUICK' | 'MATRIX' | 'MANAGE'>('QUICK');
   const [selectedStationId, setSelectedStationId] = useState<string>(
     stations[0]?.id || 'st-1'
   );
+  // Modal state for recording group scores when a station is clicked
+  const [scoringStationId, setScoringStationId] = useState<string | null>(null);
+  const [draftScores, setDraftScores] = useState<Record<string, number>>({});
+
   const [editingStation, setEditingStation] = useState<ExploraceStation | null>(null);
   const [isNewStation, setIsNewStation] = useState<boolean>(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const activeStation =
-    stations.find((s) => s.id === selectedStationId) || stations[0] || null;
+  const scoringStation =
+    stations.find((s) => s.id === scoringStationId) || null;
 
   const totalMaxMarks = stations.reduce((acc, s) => acc + s.maxMarks, 0);
   const totalDuration = stations.reduce((acc, s) => acc + s.durationMinutes, 0);
@@ -56,14 +69,49 @@ export const ExploraceSection: React.FC<ExploraceSectionProps> = ({
     .map((g) => ({ group: g, total: getGroupTotal(g.id) }))
     .sort((a, b) => b.total - a.total);
 
-  const handleSetScore = (group: GroupInfo, station: ExploraceStation, rawVal: number) => {
+  // Open the scoring modal for a station and initialize draft scores for all 8 groups
+  const openStationScoringModal = (station: ExploraceStation) => {
+    setSelectedStationId(station.id);
+    const initialDraft: Record<string, number> = {};
+    groups.forEach((grp) => {
+      initialDraft[grp.id] = scores[grp.id]?.[station.id] ?? 0;
+    });
+    setDraftScores(initialDraft);
+    setScoringStationId(station.id);
+  };
+
+  const handleDraftScoreChange = (
+    groupId: string,
+    station: ExploraceStation,
+    rawVal: number
+  ) => {
     const clamped = Math.max(0, Math.min(station.maxMarks, Math.round(rawVal)));
-    onUpdateScore(
-      group.id,
-      station.id,
-      clamped,
-      `Markah Explorace ${group.name} (${station.name}): ${clamped}/${station.maxMarks}`
-    );
+    setDraftScores((prev) => ({
+      ...prev,
+      [groupId]: clamped,
+    }));
+  };
+
+  const handleSaveStationModalScores = () => {
+    if (!scoringStation) return;
+    if (onSaveStationScores) {
+      onSaveStationScores(
+        scoringStation.id,
+        draftScores,
+        `Simpan markah Explorace ${scoringStation.name} (${scoringStation.task})`
+      );
+    } else {
+      groups.forEach((grp) => {
+        const val = draftScores[grp.id] ?? 0;
+        onUpdateScore(
+          grp.id,
+          scoringStation.id,
+          val,
+          `Markah Explorace ${grp.name} (${scoringStation.name}): ${val}/${scoringStation.maxMarks}`
+        );
+      });
+    }
+    setScoringStationId(null);
   };
 
   const openAddStationModal = () => {
@@ -181,201 +229,96 @@ export const ExploraceSection: React.FC<ExploraceSectionProps> = ({
         </div>
       </div>
 
-      {/* SUB-TAB 1: KEMASUKAN PANTAS (MOBILE-OPTIMIZED) */}
+      {/* SUB-TAB 1: KEMASUKAN PANTAS (KLIK STESEN UNTUK BUKA MODAL CATAT MARKAH & TUGASAN) */}
       {subTab === 'QUICK' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 items-start">
-          {/* Left Column: Station Selector & Active Station Details + Quick Group Score Pad */}
-          <div className="lg:col-span-8 space-y-4 sm:space-y-5">
-            {/* Horizontal / Grid Station Selector */}
-            <div className="glass-panel rounded-2xl sm:rounded-3xl p-3.5 sm:p-5">
-              <div className="flex items-center justify-between gap-2 mb-3">
-                <span className="text-[11px] sm:text-xs font-semibold text-slate-300">
-                  Pilih Stesen Untuk Kemasukan Markah Pantas:
-                </span>
+          {/* Left Column: Clean Mobile-Friendly Station Cards Grid (Click to open Scoring Modal) */}
+          <div className="lg:col-span-8 space-y-4">
+            <div className="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-3.5 border-b border-white/10">
+                <div>
+                  <h3 className="font-display font-bold text-sm sm:text-lg text-white">
+                    Senarai Stesen Explorace (Klik Stesen Untuk Catat Markah)
+                  </h3>
+                  <p className="text-[11px] sm:text-xs text-slate-300 mt-0.5">
+                    Pilih mana-mana stesen di bawah untuk membuka modal tugasan dan mencatatkan markah kumpulan.
+                  </p>
+                </div>
                 <button
                   type="button"
                   onClick={openAddStationModal}
-                  className="text-[11px] sm:text-xs font-bold text-amber-400 hover:text-amber-300 flex items-center gap-1 cursor-pointer shrink-0"
+                  className="min-h-[34px] px-3 py-1.5 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/35 text-[11px] sm:text-xs font-bold text-amber-300 flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Tambah Stesen</span>
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-3.5">
                 {stations.map((st) => {
-                  const isSel = activeStation?.id === st.id;
+                  const isSel = selectedStationId === st.id;
+                  const scoredCount = groups.filter(
+                    (g) => (scores[g.id]?.[st.id] ?? 0) > 0
+                  ).length;
+
                   return (
                     <button
                       key={st.id}
                       type="button"
-                      onClick={() => setSelectedStationId(st.id)}
-                      className={`min-h-[58px] sm:min-h-[64px] p-2.5 sm:p-3 rounded-xl sm:rounded-2xl text-left border transition-all cursor-pointer min-w-0 ${
+                      onClick={() => openStationScoringModal(st)}
+                      className={`group p-3.5 sm:p-4 rounded-2xl text-left border transition-all duration-200 cursor-pointer flex flex-col justify-between gap-3 ${
                         isSel
-                          ? 'bg-gradient-to-br from-[#1992f4]/40 to-[#277971]/45 border-amber-400 text-white shadow-md'
-                          : 'bg-[#112233]/85 hover:bg-white/10 border-white/10 text-slate-300'
+                          ? 'bg-gradient-to-br from-[#1992f4]/30 to-[#277971]/35 border-amber-400/80 text-white shadow-lg'
+                          : 'bg-[#112233]/85 hover:bg-white/10 border-white/10 hover:border-sky-300/40 text-slate-200'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-display font-bold text-[11px] sm:text-xs text-white">
-                          {st.name}
+                      <div className="space-y-2 w-full">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-6 h-6 rounded-lg bg-amber-400/20 border border-amber-400/40 font-mono font-bold text-xs text-amber-300 flex items-center justify-center shrink-0 tabular-nums">
+                              {st.number}
+                            </span>
+                            <span className="font-display font-extrabold text-xs sm:text-sm text-white truncate">
+                              {st.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-400/30 font-mono text-[10px] sm:text-[11px] text-emerald-300 font-bold tabular-nums">
+                              {st.maxMarks}m
+                            </span>
+                            <span className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 font-mono text-[10px] text-slate-300 tabular-nums">
+                              {st.durationMinutes} min
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="font-display font-bold text-xs sm:text-sm text-amber-300 leading-snug line-clamp-1">
+                            {st.task}
+                          </p>
+                          <p className="text-[10px] sm:text-[11px] text-slate-300 truncate mt-1">
+                            <span className="text-slate-400">PIC:</span> {st.pic}
+                          </p>
+                          <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
+                            <span className="text-slate-400">Lokasi:</span> {st.location}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="pt-2.5 border-t border-white/10 flex items-center justify-between gap-2 w-full">
+                        <span className="text-[10px] sm:text-[11px] font-mono text-slate-300">
+                          Direkod: <strong className="text-emerald-300">{scoredCount}/{groups.length}</strong> kumpulan
                         </span>
-                        <span className="font-mono text-[11px] sm:text-xs text-amber-400 font-bold tabular-nums shrink-0">
-                          {st.maxMarks}m
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 group-hover:translate-x-0.5 transition-transform">
+                          <ClipboardEdit className="w-3.5 h-3.5" />
+                          <span>Catat Markah</span>
                         </span>
                       </div>
-                      <p className="text-[10px] sm:text-[11px] text-slate-300 truncate mt-1">{st.task}</p>
                     </button>
                   );
                 })}
               </div>
             </div>
-
-            {/* Active Station Info & Score Pad */}
-            {activeStation ? (
-              <div className="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 pb-4 sm:pb-5 border-b border-white/10">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5 text-[11px] sm:text-xs text-emerald-300 font-medium">
-                      <span className="font-bold">{activeStation.name}</span>
-                      <span aria-hidden="true">·</span>
-                      <span className="font-mono">Markah Penilaian: {activeStation.maxMarks}</span>
-                      <span aria-hidden="true">·</span>
-                      <span className="font-mono flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        Tempoh: {activeStation.durationMinutes} minit
-                      </span>
-                    </div>
-                    <h3 className="mt-1 font-display font-bold text-base sm:text-xl text-white leading-snug">
-                      Tugasan: {activeStation.task}
-                    </h3>
-                    <div className="mt-2 space-y-1 text-[11px] sm:text-xs text-slate-300">
-                      <p className="flex items-start gap-1.5">
-                        <Users className="w-3.5 h-3.5 text-sky-400 shrink-0 mt-0.5" />
-                        <span>
-                          <strong>PIC Stesen:</strong> {activeStation.pic}
-                        </span>
-                      </p>
-                      <p className="flex items-start gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
-                        <span>
-                          <strong>Lokasi Stesen:</strong> {activeStation.location}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => openEditStationModal(activeStation)}
-                      className="min-h-[36px] sm:min-h-[40px] px-3 sm:px-3.5 py-1.5 sm:py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-[11px] sm:text-xs font-semibold text-white flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Edit3 className="w-3.5 h-3.5 text-emerald-300" />
-                      <span>Edit Stesen</span>
-                    </button>
-                    {stations.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDeleteId(activeStation.id)}
-                        className="min-h-[36px] sm:min-h-[40px] px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/30 text-[11px] sm:text-xs font-semibold text-rose-200 flex items-center gap-1.5 transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Padam</span>
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* 8 Groups Fast Score Rows */}
-                <div className="mt-3 sm:mt-4 divide-y divide-white/10">
-                  {groups.map((grp) => {
-                    const currentVal = scores[grp.id]?.[activeStation.id] ?? 0;
-                    const halfVal = Math.round(activeStation.maxMarks / 2);
-                    return (
-                      <div
-                        key={grp.id}
-                        className="py-3 sm:py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3"
-                      >
-                        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
-                          <span
-                            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center font-mono font-bold text-xs text-slate-950 shrink-0"
-                            style={{ backgroundColor: grp.colorHex }}
-                          >
-                            {grp.number}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="font-display font-bold text-sm sm:text-base text-white leading-tight">
-                              {grp.name}
-                            </p>
-                            <p className="text-[10px] sm:text-[11px] text-slate-400 truncate">
-                              Fasi: {grp.guruKumpulan}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Quick Tactile Buttons (Responsive & Never Overflows on Mobile) */}
-                        <div className="flex items-center justify-between sm:justify-end gap-1 sm:gap-1.5 w-full sm:w-auto">
-                          <button
-                            type="button"
-                            onClick={() => handleSetScore(grp, activeStation, 0)}
-                            className="min-h-[38px] sm:min-h-[42px] px-2 sm:px-2.5 rounded-lg sm:rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] sm:text-xs font-mono text-slate-300 cursor-pointer"
-                          >
-                            0
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleSetScore(grp, activeStation, halfVal)}
-                            className="min-h-[38px] sm:min-h-[42px] px-2 sm:px-2.5 rounded-lg sm:rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] sm:text-xs font-mono text-slate-300 cursor-pointer"
-                          >
-                            {halfVal}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleSetScore(grp, activeStation, currentVal - 1)}
-                            className="min-h-[38px] min-w-[38px] sm:min-h-[42px] sm:min-w-[42px] rounded-lg sm:rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 flex items-center justify-center text-white cursor-pointer"
-                            aria-label="Kurangkan 1 markah"
-                          >
-                            <Minus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                          </button>
-
-                          <div className="relative">
-                            <input
-                              type="number"
-                              min={0}
-                              max={activeStation.maxMarks}
-                              value={currentVal}
-                              onChange={(e) =>
-                                handleSetScore(grp, activeStation, Number(e.target.value))
-                              }
-                              className="w-13 sm:w-16 min-h-[38px] sm:min-h-[42px] text-center rounded-lg sm:rounded-xl glass-input font-mono font-bold text-sm sm:text-base text-emerald-300 tabular-nums"
-                            />
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleSetScore(grp, activeStation, currentVal + 1)}
-                            className="min-h-[38px] min-w-[38px] sm:min-h-[42px] sm:min-w-[42px] rounded-lg sm:rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 flex items-center justify-center text-white cursor-pointer"
-                            aria-label="Tambah 1 markah"
-                          >
-                            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleSetScore(grp, activeStation, activeStation.maxMarks)
-                            }
-                            className="min-h-[38px] sm:min-h-[42px] px-2 sm:px-3 rounded-lg sm:rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-[11px] sm:text-xs font-mono font-bold text-emerald-300 cursor-pointer whitespace-nowrap"
-                          >
-                            Maks ({activeStation.maxMarks})
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : null}
           </div>
 
           {/* Right Column: Live Automatic Explorace Leaderboard Chart */}
@@ -888,6 +831,234 @@ export const ExploraceSection: React.FC<ExploraceSectionProps> = ({
           </div>
         </div>
       )}
+
+      {/* Modal: Tugasan & Catat Markah Kumpulan bagi Stesen yang Diklik */}
+      <AnimatePresence>
+        {scoringStation && (
+          <motion.div
+            key="station-scoring-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm p-0 sm:p-4"
+            onClick={() => setScoringStationId(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.97 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-2xl max-h-[92vh] sm:max-h-[88vh] rounded-t-3xl sm:rounded-3xl glass-panel-elevated border border-white/20 shadow-2xl flex flex-col overflow-hidden"
+            >
+              {/* Modal Sticky Header */}
+              <div className="px-4 sm:px-6 py-3.5 sm:py-4 border-b border-white/15 bg-[#0b2246]/95 flex items-center justify-between gap-3 shrink-0">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="w-8 h-8 rounded-xl bg-amber-400/20 border border-amber-400/40 font-mono font-extrabold text-sm text-amber-300 flex items-center justify-center shrink-0 tabular-nums">
+                    {scoringStation.number}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5 text-[10px] sm:text-xs text-emerald-300 font-bold">
+                      <span>{scoringStation.name}</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="font-mono">Maksimum: {scoringStation.maxMarks} Markah</span>
+                      <span aria-hidden="true">·</span>
+                      <span className="font-mono flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {scoringStation.durationMinutes} Minit
+                      </span>
+                    </div>
+                    <h3 className="font-display font-bold text-sm sm:text-lg text-white truncate">
+                      Catat Markah &amp; Tugasan Kumpulan
+                    </h3>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const target = scoringStation;
+                      setScoringStationId(null);
+                      openEditStationModal(target);
+                    }}
+                    className="min-h-[34px] px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-[11px] font-semibold text-white flex items-center gap-1 cursor-pointer"
+                    title="Edit Maklumat Stesen"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-emerald-300" />
+                    <span className="hidden sm:inline">Edit Stesen</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setScoringStationId(null)}
+                    className="w-8 h-8 rounded-xl bg-white/5 hover:bg-white/15 flex items-center justify-center text-slate-300 hover:text-white cursor-pointer"
+                    aria-label="Tutup Modal"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Scrollable Body: Task Info + 8 Groups Score List */}
+              <div className="p-4 sm:p-6 overflow-y-auto space-y-4 flex-1">
+                {/* Tugasan & Maklumat Stesen Card */}
+                <div className="p-3.5 sm:p-4 rounded-2xl bg-[#112233]/90 border border-amber-400/35 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <Compass className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300 block">
+                        Tugasan Stesen
+                      </span>
+                      <p className="font-display font-bold text-sm sm:text-base text-white leading-snug">
+                        {scoringStation.task}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-white/10 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px] sm:text-xs text-slate-300">
+                    <p className="flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                      <span className="truncate">
+                        <strong>PIC:</strong> {scoringStation.pic}
+                      </span>
+                    </p>
+                    <p className="flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span className="truncate">
+                        <strong>Lokasi:</strong> {scoringStation.location}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* 8 Kumpulan Score Entry Rows */}
+                <div className="divide-y divide-white/10 rounded-2xl bg-slate-950/45 border border-white/10 px-3 sm:px-4">
+                  {groups.map((grp) => {
+                    const currentVal = draftScores[grp.id] ?? 0;
+                    const halfVal = Math.round(scoringStation.maxMarks / 2);
+                    return (
+                      <div
+                        key={grp.id}
+                        className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5"
+                      >
+                        <div className="flex items-center justify-between sm:justify-start gap-2.5 min-w-0">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span
+                              className="w-7 h-7 rounded-lg flex items-center justify-center font-mono font-bold text-xs text-slate-950 shrink-0"
+                              style={{ backgroundColor: grp.colorHex }}
+                            >
+                              {grp.number}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="font-display font-bold text-xs sm:text-sm text-white leading-tight">
+                                {grp.name}
+                              </p>
+                              <p className="text-[10px] text-slate-400 truncate">
+                                Fasi: {grp.guruKumpulan}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="sm:hidden font-mono font-extrabold text-xs text-emerald-300 tabular-nums">
+                            {currentVal} / {scoringStation.maxMarks}m
+                          </span>
+                        </div>
+
+                        {/* Tactile Score Controls */}
+                        <div className="flex items-center justify-between sm:justify-end gap-1 sm:gap-1.5 w-full sm:w-auto">
+                          <button
+                            type="button"
+                            onClick={() => handleDraftScoreChange(grp.id, scoringStation, 0)}
+                            className="min-h-[36px] px-2 sm:px-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-mono text-slate-300 cursor-pointer"
+                          >
+                            0
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDraftScoreChange(grp.id, scoringStation, halfVal)
+                            }
+                            className="min-h-[36px] px-2 sm:px-2.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-mono text-slate-300 cursor-pointer"
+                          >
+                            {halfVal}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDraftScoreChange(grp.id, scoringStation, currentVal - 1)
+                            }
+                            className="min-h-[36px] min-w-[36px] rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 flex items-center justify-center text-white cursor-pointer"
+                            aria-label="Kurangkan 1 markah"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+
+                          <input
+                            type="number"
+                            min={0}
+                            max={scoringStation.maxMarks}
+                            value={currentVal}
+                            onChange={(e) =>
+                              handleDraftScoreChange(
+                                grp.id,
+                                scoringStation,
+                                Number(e.target.value)
+                              )
+                            }
+                            className="w-13 sm:w-15 min-h-[36px] text-center rounded-lg glass-input font-mono font-bold text-xs sm:text-sm text-emerald-300 tabular-nums"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDraftScoreChange(grp.id, scoringStation, currentVal + 1)
+                            }
+                            className="min-h-[36px] min-w-[36px] rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 flex items-center justify-center text-white cursor-pointer"
+                            aria-label="Tambah 1 markah"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleDraftScoreChange(
+                                grp.id,
+                                scoringStation,
+                                scoringStation.maxMarks
+                              )
+                            }
+                            className="min-h-[36px] px-2 sm:px-2.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/40 text-[11px] font-mono font-bold text-emerald-300 cursor-pointer whitespace-nowrap"
+                          >
+                            Maks ({scoringStation.maxMarks})
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Modal Sticky Footer: Tutup & Simpan Buttons */}
+              <div className="px-4 sm:px-6 py-3.5 border-t border-white/15 bg-[#0b2246]/95 flex items-center justify-end gap-2.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setScoringStationId(null)}
+                  className="min-h-[42px] px-5 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs sm:text-sm font-bold text-slate-200 cursor-pointer transition-colors"
+                >
+                  Tutup
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveStationModalScores}
+                  className="min-h-[42px] px-6 py-2 rounded-xl bg-gradient-to-r from-[#f5c427] via-[#f59e0b] to-[#ea6c15] hover:brightness-105 text-slate-950 font-display font-extrabold text-xs sm:text-sm flex items-center gap-1.5 shadow-lg cursor-pointer transition-all"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Simpan</span>
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
