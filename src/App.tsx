@@ -17,6 +17,8 @@ import {
   RefreshCw,
   RotateCcw,
   Users,
+  Volume2,
+  VolumeX,
   Wifi,
   X,
 } from 'lucide-react';
@@ -55,6 +57,9 @@ const STORAGE_STATE_KEY = 'sk_lupak_2026_camp_state_v1';
 const STORAGE_QUEUE_KEY = 'sk_lupak_2026_sync_queue_v1';
 const STORAGE_WELCOME_KEY = 'sk_lupak_2026_entered_v1';
 const STORAGE_ADMIN_UNLOCKED_KEY = 'sk_lupak_2026_admin_unlocked_v1';
+const STORAGE_BGM_ENABLED_KEY = 'sk_lupak_2026_bgm_enabled_v1';
+const BGM_AUDIO_SRC =
+  '/assets/aistudio/The_Godfather_Love_Theme____Remix_by_BOLO_808__fa2b7feb.mp3';
 
 type MainTab = 'JADUAL' | 'EXPLORACE' | 'PEMARKAHAN' | 'AJK' | 'ANUGERAH_OPR';
 
@@ -279,6 +284,86 @@ export default function App() {
 
   // Collapsible Sidebar state (can be hidden/toggled via hamburger button)
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
+
+  // Background Music (BGM) State & Audio Ref
+  const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
+  const [isMusicEnabled, setIsMusicEnabled] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_BGM_ENABLED_KEY);
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+  const [isMusicPlaying, setIsMusicPlaying] = useState<boolean>(false);
+
+  useEffect(() => {
+    const audio = bgmAudioRef.current;
+    if (!audio) return;
+    audio.volume = 0.45;
+
+    if (!isMusicEnabled) {
+      audio.pause();
+      setIsMusicPlaying(false);
+      return;
+    }
+
+    const attemptPlay = () => {
+      if (!bgmAudioRef.current) return;
+      bgmAudioRef.current
+        .play()
+        .then(() => {
+          setIsMusicPlaying(true);
+        })
+        .catch(() => {
+          // Wait for first user gesture if autoplay was blocked by browser policy
+        });
+    };
+
+    attemptPlay();
+
+    const handleFirstInteraction = () => {
+      if (bgmAudioRef.current && bgmAudioRef.current.paused) {
+        bgmAudioRef.current
+          .play()
+          .then(() => {
+            setIsMusicPlaying(true);
+          })
+          .catch(() => {
+            // ignore
+          });
+      }
+    };
+
+    window.addEventListener('pointerdown', handleFirstInteraction, { once: true });
+    window.addEventListener('keydown', handleFirstInteraction, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+    };
+  }, [isMusicEnabled]);
+
+  const handleToggleMusic = () => {
+    const audio = bgmAudioRef.current;
+    const nextEnabled = !isMusicEnabled;
+    setIsMusicEnabled(nextEnabled);
+    try {
+      localStorage.setItem(STORAGE_BGM_ENABLED_KEY, String(nextEnabled));
+    } catch {
+      // ignore
+    }
+    if (!audio) return;
+    audio.volume = 0.45;
+    if (nextEnabled) {
+      audio
+        .play()
+        .then(() => setIsMusicPlaying(true))
+        .catch(() => setIsMusicPlaying(false));
+    } else {
+      audio.pause();
+      setIsMusicPlaying(false);
+    }
+  };
 
   // Main Camp Data State (Offline-first persisted in localStorage)
   const [campState, setCampState] = useState<CampAppState>(() => {
@@ -707,6 +792,15 @@ export default function App() {
   const handleEnterApp = (initialTab: 'JADUAL' | 'EXPLORACE') => {
     setActiveTab(initialTab);
     setHasEntered(true);
+    if (isMusicEnabled && bgmAudioRef.current && bgmAudioRef.current.paused) {
+      bgmAudioRef.current.volume = 0.45;
+      bgmAudioRef.current
+        .play()
+        .then(() => setIsMusicPlaying(true))
+        .catch(() => {
+          // ignore
+        });
+    }
     try {
       sessionStorage.setItem(STORAGE_WELCOME_KEY, 'true');
     } catch {
@@ -868,114 +962,152 @@ export default function App() {
     setShowSyncDrawer(false);
   };
 
-  // Front Page: Simplified Welcome View
-  if (!hasEntered) {
-    return (
-      <AnimatePresence mode="wait">
-        <motion.div
-          key="welcome-screen"
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.98 }}
-          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-        >
-          <WelcomeLoginView onEnterApp={handleEnterApp} />
-        </motion.div>
-      </AnimatePresence>
-    );
-  }
-
   return (
-    <div className="min-h-screen camp-gradient-bg text-slate-100 flex flex-col pb-20 lg:pb-10 overflow-x-hidden">
-      {/* Top Header: Desktop Hamburger Toggle, App Logo, Full Non-Truncated Title & Compact Utility Icon Buttons */}
-      <header className="sticky top-0 z-30 bg-[#0b2246]/90 backdrop-blur-2xl border-b border-white/15">
-        <div className="max-w-7xl mx-auto px-3 sm:px-8 min-h-[56px] sm:h-16 py-1.5 sm:py-0 flex items-center justify-between gap-2 sm:gap-3">
-          {/* Left: Hamburger Menu Button (Desktop Only) + App Logo + Full 'Perkhemahan Kokurikulum SK Lupak 2026' */}
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-            <button
-              type="button"
-              onClick={() => setIsSidebarOpen((v) => !v)}
-              className="hidden lg:flex w-9 h-9 rounded-xl bg-white/5 hover:bg-white/15 border border-white/15 text-amber-400 items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
-              title={isSidebarOpen ? 'Sembunyikan Menu Utama' : 'Buka Menu Utama'}
-              aria-label="Togol Menu Utama"
-            >
-              {isSidebarOpen ? (
-                <PanelLeftClose className="w-4 h-4" />
-              ) : (
-                <Menu className="w-4 h-4" />
-              )}
-            </button>
+    <>
+      {/* Persistent Background Music Audio Element across Welcome Page & All Tabs */}
+      <audio
+        ref={bgmAudioRef}
+        src={BGM_AUDIO_SRC}
+        loop
+        preload="auto"
+        onPlay={() => setIsMusicPlaying(true)}
+        onPause={() => setIsMusicPlaying(false)}
+        className="hidden"
+      />
 
-            <button
-              type="button"
-              onClick={() => setActiveTab('JADUAL')}
-              className="flex items-center gap-2 sm:gap-2.5 min-w-0 text-left group cursor-pointer"
-            >
-              <img
-                src="/assets/aistudio/LOGO_SK_3D__1__62639ca8.png"
-                alt="Logo Aplikasi Perkhemahan Kokurikulum SK Lupak 2026"
-                referrerPolicy="no-referrer"
-                className="w-8 h-8 sm:w-10 sm:h-10 object-contain drop-shadow-md shrink-0 group-hover:scale-105 transition-transform duration-200"
-              />
-              <span className="font-display font-extrabold text-[12px] sm:text-base lg:text-lg leading-tight tracking-tight text-amber-400">
-                Perkhemahan Kokurikulum SK Lupak 2026
-              </span>
-            </button>
-          </div>
+      {!hasEntered ? (
+        <AnimatePresence mode="wait">
+          <motion.div
+            key="welcome-screen"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+          >
+            <WelcomeLoginView
+              onEnterApp={handleEnterApp}
+              isMusicPlaying={isMusicEnabled && isMusicPlaying}
+              onToggleMusic={handleToggleMusic}
+            />
+          </motion.div>
+        </AnimatePresence>
+      ) : (
+        <div className="min-h-screen camp-gradient-bg text-slate-100 flex flex-col pb-20 lg:pb-10 overflow-x-hidden">
+          {/* Top Header: Desktop Hamburger Toggle, App Logo, Full Non-Truncated Title & Compact Utility Icon Buttons */}
+          <header className="sticky top-0 z-30 bg-[#0b2246]/90 backdrop-blur-2xl border-b border-white/15">
+            <div className="max-w-7xl mx-auto px-3 sm:px-8 min-h-[56px] sm:h-16 py-1.5 sm:py-0 flex items-center justify-between gap-2 sm:gap-3">
+              {/* Left: Hamburger Menu Button (Desktop Only) + App Logo + Full 'Perkhemahan Kokurikulum SK Lupak 2026' */}
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                <button
+                  type="button"
+                  onClick={() => setIsSidebarOpen((v) => !v)}
+                  className="hidden lg:flex w-9 h-9 rounded-xl bg-white/5 hover:bg-white/15 border border-white/15 text-amber-400 items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+                  title={isSidebarOpen ? 'Sembunyikan Menu Utama' : 'Buka Menu Utama'}
+                  aria-label="Togol Menu Utama"
+                >
+                  {isSidebarOpen ? (
+                    <PanelLeftClose className="w-4 h-4" />
+                  ) : (
+                    <Menu className="w-4 h-4" />
+                  )}
+                </button>
 
-          {/* Right: Compact Icon-Only Utility Buttons (PWA Mobile App, Online/Offline, Sync Log, Welcome Page) */}
-          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-            <PWAInstallButton />
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('JADUAL')}
+                  className="flex items-center gap-2 sm:gap-2.5 min-w-0 text-left group cursor-pointer"
+                >
+                  <img
+                    src="/assets/aistudio/LOGO_SK_3D__1__62639ca8.png"
+                    alt="Logo Aplikasi Perkhemahan Kokurikulum SK Lupak 2026"
+                    referrerPolicy="no-referrer"
+                    className="w-8 h-8 sm:w-10 sm:h-10 object-contain drop-shadow-md shrink-0 group-hover:scale-105 transition-transform duration-200"
+                  />
+                  <span className="font-display font-extrabold text-[12px] sm:text-base lg:text-lg leading-tight tracking-tight text-amber-400">
+                    Perkhemahan Kokurikulum SK Lupak 2026
+                  </span>
+                </button>
+              </div>
 
-            <button
-              type="button"
-              onClick={() => setSimulateOffline((v) => !v)}
-              className={`relative w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer ${
-                isOnline
-                  ? 'bg-[#277971]/50 border-emerald-300/35 text-emerald-300 hover:bg-[#277971]/70'
-                  : 'bg-amber-500/25 border-amber-400/50 text-amber-300 hover:bg-amber-500/35'
-              }`}
-              title={
-                isOnline
-                  ? 'Status: Dalam Talian (Disegerak) — Klik untuk uji Mod Luar Talian'
-                  : `Status: Mod Luar Talian (${pendingItems.length} Menunggu)`
-              }
-              aria-label="Status Sambungan Talian"
-            >
-              {isOnline ? (
-                <Wifi className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              ) : (
-                <CloudOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              )}
-              {!isOnline && pendingItems.length > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 rounded-full bg-amber-400 text-slate-950 font-mono font-bold text-[9px] flex items-center justify-center">
-                  {pendingItems.length}
-                </span>
-              )}
-            </button>
+              {/* Right: Compact Icon-Only Utility Buttons (Background Music, PWA Mobile App, Online/Offline, Sync Log, Welcome Page) */}
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleToggleMusic}
+                  className={`relative w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer ${
+                    isMusicEnabled
+                      ? 'bg-amber-400/20 border-amber-300/45 text-amber-300 hover:bg-amber-400/30'
+                      : 'bg-white/5 border-white/15 text-slate-400 hover:bg-white/10 hover:text-slate-200'
+                  }`}
+                  title={
+                    isMusicEnabled
+                      ? 'Muzik Latar: Aktif — Klik untuk senyapkan'
+                      : 'Muzik Latar: Senyap — Klik untuk mainkan'
+                  }
+                  aria-label="Togol Muzik Latar"
+                >
+                  {isMusicEnabled ? (
+                    <Volume2
+                      className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${
+                        isMusicPlaying ? 'animate-pulse' : ''
+                      }`}
+                    />
+                  ) : (
+                    <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  )}
+                </button>
 
-            <button
-              type="button"
-              onClick={() => setShowSyncDrawer(true)}
-              className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#3b669c]/45 hover:bg-[#3b669c]/65 border border-sky-300/30 text-sky-200 flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer"
-              title={`Log Penyegerakan Data (${syncQueue.length} rekod)`}
-              aria-label="Log Penyegerakan Data"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isSyncing ? 'animate-spin' : ''}`} />
-            </button>
+                <PWAInstallButton />
 
-            <button
-              type="button"
-              onClick={handleReturnWelcome}
-              className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-r from-[#1992f4] to-[#2157e2] hover:brightness-110 border border-sky-300/35 text-white flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer shadow-sm"
-              title="Kembali ke Halaman Utama (Welcome Page)"
-              aria-label="Kembali ke Halaman Utama"
-            >
-              <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-          </div>
-        </div>
-      </header>
+                <button
+                  type="button"
+                  onClick={() => setSimulateOffline((v) => !v)}
+                  className={`relative w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer ${
+                    isOnline
+                      ? 'bg-[#277971]/50 border-emerald-300/35 text-emerald-300 hover:bg-[#277971]/70'
+                      : 'bg-amber-500/25 border-amber-400/50 text-amber-300 hover:bg-amber-500/35'
+                  }`}
+                  title={
+                    isOnline
+                      ? 'Status: Dalam Talian (Disegerak) — Klik untuk uji Mod Luar Talian'
+                      : `Status: Mod Luar Talian (${pendingItems.length} Menunggu)`
+                  }
+                  aria-label="Status Sambungan Talian"
+                >
+                  {isOnline ? (
+                    <Wifi className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  ) : (
+                    <CloudOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  )}
+                  {!isOnline && pendingItems.length > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[15px] h-[15px] px-0.5 rounded-full bg-amber-400 text-slate-950 font-mono font-bold text-[9px] flex items-center justify-center">
+                      {pendingItems.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowSyncDrawer(true)}
+                  className="relative w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-[#3b669c]/45 hover:bg-[#3b669c]/65 border border-sky-300/30 text-sky-200 flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer"
+                  title={`Log Penyegerakan Data (${syncQueue.length} rekod)`}
+                  aria-label="Log Penyegerakan Data"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleReturnWelcome}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-gradient-to-r from-[#1992f4] to-[#2157e2] hover:brightness-110 border border-sky-300/35 text-white flex items-center justify-center transition-all duration-200 active:scale-95 cursor-pointer shadow-sm"
+                  title="Kembali ke Halaman Utama (Welcome Page)"
+                  aria-label="Kembali ke Halaman Utama"
+                >
+                  <Home className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </button>
+              </div>
+            </div>
+          </header>
 
       {/* Collapsible Sidebar Navigation Drawer (Desktop Only — Mobile uses Bottom Navigation) */}
       <AnimatePresence>
@@ -1198,7 +1330,7 @@ export default function App() {
         </div>
       </nav>
 
-      {/* Modal: Offline Sync Queue & Activity Log */}
+      {/* Modal: Offline Sync Queue & Activity Log (Responsive Mobile-First with Sticky Header & Footer) */}
       <AnimatePresence>
         {showSyncDrawer && (
           <motion.div
@@ -1206,63 +1338,72 @@ export default function App() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+            onClick={() => setShowSyncDrawer(false)}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-2.5 sm:p-4"
           >
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              initial={{ opacity: 0, scale: 0.96, y: 12 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              exit={{ opacity: 0, scale: 0.96, y: 12 }}
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="w-full max-w-lg rounded-3xl glass-panel-elevated p-6 border border-white/20 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg max-h-[86dvh] sm:max-h-[88vh] rounded-2xl sm:rounded-3xl glass-panel-elevated border border-white/20 shadow-2xl flex flex-col overflow-hidden"
             >
-              <div className="flex items-center justify-between pb-3 border-b border-white/10">
-                <div>
-                  <h3 className="font-display font-bold text-lg text-white">
+              {/* Sticky Modal Header — Always Visible on Mobile */}
+              <div className="shrink-0 px-3.5 sm:px-5 py-3 sm:py-4 border-b border-white/15 bg-[#0b2246]/95 flex items-start justify-between gap-2.5">
+                <div className="min-w-0">
+                  <h3 className="font-display font-extrabold text-sm sm:text-lg text-white leading-snug">
                     Status Penyegerakan Data &amp; Mod Luar Talian
                   </h3>
-                  <p className="text-xs text-amber-400 mt-0.5">{lastSyncedAt}</p>
+                  <p className="text-[11px] sm:text-xs text-amber-400 mt-0.5 truncate">
+                    {lastSyncedAt}
+                  </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowSyncDrawer(false)}
-                  className="min-h-[36px] min-w-[36px] rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-300 cursor-pointer"
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 flex items-center justify-center text-white shrink-0 cursor-pointer"
+                  aria-label="Tutup Modal Penyegerakan"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="mt-4 space-y-3">
+              {/* Scrollable Modal Content */}
+              <div className="flex-1 overflow-y-auto px-3.5 sm:px-5 py-3 sm:py-4 space-y-2.5 sm:space-y-3">
                 {/* Firebase Cloud Sync Panel */}
-                <div className="p-3.5 rounded-2xl bg-[#112233]/90 border border-emerald-400/25 space-y-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <Cloud className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <div>
-                        <p className="text-xs font-bold text-white">
-                          Auto-Segerak Awan Firebase (Multi-Pengguna)
-                        </p>
-                        <p className="text-[11px] text-slate-300">
+                <div className="p-3 sm:p-3.5 rounded-2xl bg-[#112233]/90 border border-emerald-400/25 space-y-2.5">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="flex items-start gap-2 min-w-0 flex-1">
+                      <Cloud className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="text-xs font-bold text-white">
+                            Auto-Segerak Awan Firebase
+                          </p>
+                          <span
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${
+                              isOnline
+                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+                                : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
+                            }`}
+                          >
+                            {isOnline ? 'Aktif' : 'Luar Talian'}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 mt-0.5 leading-relaxed">
                           {firebaseUser
                             ? `Aktif (${firebaseUser.displayName || firebaseUser.email}) — Semua perubahan disegerakkan secara langsung ke semua peranti guru.`
-                            : 'Penyegerakan pangkalan data Firebase Firestore aktif secara automatik merentas semua peranti (termasuk di Vercel) tanpa memerlukan log masuk Google.'}
+                            : 'Penyegerakan pangkalan data Firebase Firestore aktif secara automatik merentas semua peranti tanpa memerlukan log masuk Google.'}
                         </p>
                       </div>
                     </div>
-                    <span
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold shrink-0 ${
-                        isOnline
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
-                      }`}
-                    >
-                      {isOnline ? 'Auto-Segerak Aktif' : 'Luar Talian'}
-                    </span>
                   </div>
 
-                  {/* Direct Teacher Name Input for Sync Logs (Works on Vercel without Google OAuth domain allowlist) */}
-                  <div className="pt-1">
+                  {/* Direct Teacher Name Input for Sync Logs */}
+                  <div className="pt-0.5">
                     <label className="block text-[10px] font-bold text-amber-300 uppercase tracking-wider mb-1">
-                      Nama Guru / Peranan (Direkod dalam Log Penyegerakan Firebase)
+                      Nama Guru / Peranan (Direkod dalam Log)
                     </label>
                     <input
                       type="text"
@@ -1270,7 +1411,7 @@ export default function App() {
                       onChange={(e) => handleTeacherNameChange(e.target.value)}
                       list="sk-lupak-teachers-list"
                       placeholder="Masukkan nama anda (cth: PN JUHANI BINTI NORMAN)"
-                      className="w-full min-h-[36px] px-3 py-1.5 rounded-xl glass-input text-xs font-semibold text-white"
+                      className="w-full min-h-[36px] px-2.5 sm:px-3 py-1.5 rounded-xl glass-input text-xs font-semibold text-white"
                     />
                     <datalist id="sk-lupak-teachers-list">
                       {TEACHER_ACCOUNTS.map((t) => (
@@ -1284,11 +1425,11 @@ export default function App() {
 
                   {authErrorMsg && (
                     <div className="text-[11px] text-amber-100 bg-amber-500/15 border border-amber-400/35 rounded-xl p-2.5 space-y-1.5">
-                      <p className="font-semibold text-amber-300">{authErrorMsg}</p>
+                      <p className="font-semibold text-amber-300 leading-snug">{authErrorMsg}</p>
                       {unauthorizedDomainHost && (
                         <div className="text-[10px] text-slate-200 space-y-1">
                           <p>
-                            Jika anda masih ingin mengaktifkan butang Log Masuk Google pada domain Vercel:
+                            Jika ingin mengaktifkan Log Masuk Google pada domain Vercel:
                           </p>
                           <ol className="list-decimal list-inside space-y-0.5 text-slate-300">
                             <li>
@@ -1297,14 +1438,14 @@ export default function App() {
                                 href="https://console.firebase.google.com/project/e-hadir-sk-lupak/authentication/settings"
                                 target="_blank"
                                 rel="noreferrer"
-                                className="text-sky-300 underline font-semibold"
+                                className="text-sky-300 underline font-semibold break-all"
                               >
-                                Firebase Console &rarr; Authentication &rarr; Settings &rarr; Authorized domains
+                                Firebase Console &rarr; Authentication &rarr; Authorized domains
                               </a>
                             </li>
                             <li>
-                              Klik <strong>Add domain</strong> dan masukkan:{' '}
-                              <code className="px-1.5 py-0.5 rounded bg-slate-950 text-emerald-300 font-mono">
+                              Tambah domain:{' '}
+                              <code className="px-1.5 py-0.5 rounded bg-slate-950 text-emerald-300 font-mono break-all">
                                 {unauthorizedDomainHost}
                               </code>
                             </li>
@@ -1314,12 +1455,12 @@ export default function App() {
                     </div>
                   )}
 
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <div className="grid grid-cols-1 sm:flex sm:flex-wrap items-center gap-2 pt-0.5">
                     <button
                       type="button"
                       onClick={handleManualCloudSync}
                       disabled={isSyncing || !isOnline}
-                      className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/35 text-emerald-200 text-xs font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      className="w-full sm:w-auto min-h-[36px] px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/35 text-emerald-200 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                     >
                       <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
                       <span>Segerak ke Firebase Sekarang</span>
@@ -1330,7 +1471,7 @@ export default function App() {
                         type="button"
                         onClick={handleGoogleSignIn}
                         disabled={!isAuthReady}
-                        className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                        className="w-full sm:w-auto min-h-[36px] px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <LogIn className="w-3.5 h-3.5 text-sky-400" />
                         <span>Pautkan Google (Pilihan)</span>
@@ -1339,7 +1480,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={handleGoogleSignOut}
-                        className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-slate-300 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
+                        className="w-full sm:w-auto min-h-[36px] px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-slate-300 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer"
                       >
                         <LogOut className="w-3.5 h-3.5" />
                         <span>Log Keluar Google</span>
@@ -1348,19 +1489,20 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="p-3.5 rounded-2xl bg-[#112233]/90 border border-white/10 flex items-center justify-between gap-2">
+                {/* Offline Simulation Toggle */}
+                <div className="p-3 sm:p-3.5 rounded-2xl bg-[#112233]/90 border border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                   <div>
                     <p className="text-xs font-bold text-white">
                       Simulasi Mod Luar Talian (Uji Tanpa Internet)
                     </p>
-                    <p className="text-[11px] text-slate-400">
-                      Aktifkan untuk melihat bagaimana perubahan disimpan dalam giliran luar talian.
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Aktifkan untuk menguji simpanan giliran luar talian.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setSimulateOffline((v) => !v)}
-                    className={`min-h-[38px] px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer shrink-0 ${
+                    className={`w-full sm:w-auto min-h-[36px] px-3.5 py-1.5 rounded-xl text-xs font-bold cursor-pointer shrink-0 ${
                       simulateOffline
                         ? 'bg-gradient-to-r from-[#f5c427] to-[#ea6c15] text-slate-950'
                         : 'bg-white/10 text-slate-200 hover:bg-white/15'
@@ -1370,62 +1512,71 @@ export default function App() {
                   </button>
                 </div>
 
-                <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
-                  {syncQueue.length === 0 ? (
-                    <p className="text-xs text-slate-400 text-center py-6">
-                      Semua data markah, stesen dan OPR berada dalam keadaan terkini.
-                    </p>
-                  ) : (
-                    syncQueue.map((item) => (
-                      <div
-                        key={item.id}
-                        className="p-3 rounded-xl bg-[#112233]/80 border border-white/10 flex items-start justify-between gap-3 text-xs"
-                      >
-                        <div>
-                          <p className="font-semibold text-white">{item.description}</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">
-                            Oleh: {item.actor} · <span className="font-mono">{item.timestamp}</span>
-                          </p>
-                        </div>
-                        <span
-                          className={`font-semibold text-[11px] shrink-0 flex items-center gap-1 ${
-                            item.synced ? 'text-emerald-300' : 'text-amber-300'
-                          }`}
+                {/* Activity & Sync Log List */}
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                    Log Aktiviti Penyegerakan ({syncQueue.length})
+                  </p>
+                  <div className="max-h-44 sm:max-h-52 overflow-y-auto space-y-1.5 pr-1">
+                    {syncQueue.length === 0 ? (
+                      <p className="text-xs text-slate-400 text-center py-4 bg-[#112233]/50 rounded-xl border border-white/5">
+                        Semua data markah, stesen dan OPR berada dalam keadaan terkini.
+                      </p>
+                    ) : (
+                      syncQueue.map((item) => (
+                        <div
+                          key={item.id}
+                          className="p-2.5 sm:p-3 rounded-xl bg-[#112233]/80 border border-white/10 flex items-start justify-between gap-2.5 text-xs"
                         >
-                          {item.synced ? (
-                            <>
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              Disegerak
-                            </>
-                          ) : (
-                            <>
-                              <CloudOff className="w-3.5 h-3.5" />
-                              Menunggu
-                            </>
-                          )}
-                        </span>
-                      </div>
-                    ))
-                  )}
+                          <div className="min-w-0">
+                            <p className="font-semibold text-white text-[11px] sm:text-xs break-words">
+                              {item.description}
+                            </p>
+                            <p className="text-[10px] sm:text-[11px] text-slate-400 mt-0.5 truncate">
+                              Oleh: {item.actor} · <span className="font-mono">{item.timestamp}</span>
+                            </p>
+                          </div>
+                          <span
+                            className={`font-semibold text-[10px] sm:text-[11px] shrink-0 flex items-center gap-1 ${
+                              item.synced ? 'text-emerald-300' : 'text-amber-300'
+                            }`}
+                          >
+                            {item.synced ? (
+                              <>
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                Disegerak
+                              </>
+                            ) : (
+                              <>
+                                <CloudOff className="w-3.5 h-3.5" />
+                                Menunggu
+                              </>
+                            )}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
+              </div>
 
-                <div className="pt-3 border-t border-white/10 flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={handleResetAllData}
-                    className="min-h-[40px] px-3.5 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/30 text-xs font-semibold text-rose-200 flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Reset Data Asal</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowSyncDrawer(false)}
-                    className="min-h-[40px] px-5 py-2 rounded-xl bg-gradient-to-r from-[#f5c427] via-[#f59e0b] to-[#ea6c15] text-slate-950 text-xs font-bold cursor-pointer"
-                  >
-                    Tutup
-                  </button>
-                </div>
+              {/* Sticky Modal Footer — Reset & Tutup Buttons Always Accessible on Mobile */}
+              <div className="shrink-0 px-3.5 sm:px-5 py-2.5 sm:py-3.5 border-t border-white/15 bg-[#0b2246]/95 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={handleResetAllData}
+                  className="min-h-[38px] sm:min-h-[40px] px-3 sm:px-3.5 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-400/30 text-[11px] sm:text-xs font-semibold text-rose-200 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                  <span>Reset Data Asal</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowSyncDrawer(false)}
+                  className="min-h-[38px] sm:min-h-[40px] px-5 sm:px-6 py-1.5 rounded-xl bg-gradient-to-r from-[#f5c427] via-[#f59e0b] to-[#ea6c15] text-slate-950 text-xs font-extrabold cursor-pointer shadow-md"
+                >
+                  Tutup
+                </button>
               </div>
             </motion.div>
           </motion.div>
@@ -1531,6 +1682,8 @@ export default function App() {
         onClose={() => setShowPasswordModal(false)}
         onUnlockSuccess={handleUnlockAdminSuccess}
       />
-    </div>
+        </div>
+      )}
+    </>
   );
 }

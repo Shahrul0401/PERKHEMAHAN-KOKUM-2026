@@ -6,17 +6,50 @@ import {
   Clock,
   LayoutGrid,
   MapPin,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 
 interface WelcomeLoginViewProps {
   onEnterApp: (initialTab: 'JADUAL' | 'EXPLORACE') => void;
+  isMusicPlaying?: boolean;
+  onToggleMusic?: () => void;
 }
 
 export const WelcomeLoginView: React.FC<WelcomeLoginViewProps> = ({
   onEnterApp,
+  isMusicPlaying = false,
+  onToggleMusic,
 }) => {
   return (
     <div className="min-h-screen w-full camp-gradient-bg flex items-center justify-center p-3 sm:p-6 lg:p-10 relative overflow-x-hidden">
+      {/* Floating Background Music Toggle on Welcome Page */}
+      {onToggleMusic && (
+        <button
+          type="button"
+          onClick={onToggleMusic}
+          className={`fixed top-3 right-3 sm:top-5 sm:right-5 z-30 min-h-[36px] px-3 py-1.5 rounded-full border backdrop-blur-xl flex items-center gap-1.5 text-[11px] sm:text-xs font-bold shadow-lg transition-all duration-200 active:scale-95 cursor-pointer ${
+            isMusicPlaying
+              ? 'bg-amber-400/20 border-amber-300/50 text-amber-200 hover:bg-amber-400/30'
+              : 'bg-[#0b2246]/80 border-white/15 text-slate-300 hover:bg-white/10'
+          }`}
+          title={isMusicPlaying ? 'Hentikan Muzik Latar' : 'Mainkan Muzik Latar'}
+          aria-label={isMusicPlaying ? 'Hentikan Muzik Latar' : 'Mainkan Muzik Latar'}
+        >
+          {isMusicPlaying ? (
+            <>
+              <Volume2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 animate-pulse" />
+              <span>Muzik: Aktif</span>
+            </>
+          ) : (
+            <>
+              <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-slate-400" />
+              <span>Muzik: Senyap</span>
+            </>
+          )}
+        </button>
+      )}
+
       {/* Main Glassmorphic Card Container (No Header) */}
       <main className="relative z-10 w-full max-w-[1060px] rounded-2xl sm:rounded-[28px] p-4 sm:p-8 lg:p-10 glass-panel">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-7 lg:gap-9 items-center">
