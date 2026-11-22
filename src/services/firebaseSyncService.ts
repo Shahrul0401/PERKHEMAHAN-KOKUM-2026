@@ -18,6 +18,23 @@ export const CAMP_WORKSPACE_PATH = `campWorkspaces/${CAMP_DOC_ID}`;
 export const CAMP_SYNC_LOGS_PATH = `campWorkspaces/${CAMP_DOC_ID}/syncLogs`;
 
 const DEVICE_UID_KEY = 'sk_lupak_2026_device_actor_uid_v1';
+const TEACHER_NAME_KEY = 'sk_lupak_2026_teacher_name_v1';
+
+export function getSavedTeacherName(): string {
+  try {
+    return localStorage.getItem(TEACHER_NAME_KEY) || 'Guru SK Lupak';
+  } catch {
+    return 'Guru SK Lupak';
+  }
+}
+
+export function setSavedTeacherName(name: string): void {
+  try {
+    localStorage.setItem(TEACHER_NAME_KEY, name.trim() || 'Guru SK Lupak');
+  } catch {
+    // ignore
+  }
+}
 
 export function getOrCreateDeviceActorId(): string {
   try {
@@ -73,12 +90,13 @@ function buildOprMeta(opr: OPRReportData): Record<string, unknown> {
 export async function pushCampStateToFirestore(
   user: User | null,
   state: CampAppState,
-  lastActionDesc: string
+  lastActionDesc: string,
+  customTeacherName?: string
 ): Promise<void> {
   const docRef = doc(db, 'campWorkspaces', CAMP_DOC_ID);
   const actorUid = user ? user.uid : getOrCreateDeviceActorId();
   const updatedByName = sanitizeString(
-    user?.displayName || user?.email || 'Guru SK Lupak',
+    user?.displayName || user?.email || customTeacherName || getSavedTeacherName(),
     120,
     'Guru SK Lupak'
   );

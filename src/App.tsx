@@ -30,7 +30,9 @@ import { WelcomeLoginView } from './components/WelcomeLoginView';
 import { INITIAL_CAMP_STATE, TEACHER_ACCOUNTS } from './data/initialData';
 import { auth, googleProvider } from './firebase';
 import {
+  getSavedTeacherName,
   pushCampStateToFirestore,
+  setSavedTeacherName,
   subscribeToCampWorkspace,
   subscribeToSyncLogs,
 } from './services/firebaseSyncService';
@@ -153,10 +155,12 @@ export default function App() {
   });
   const [currentUser] = useState<UserAccount>(TEACHER_ACCOUNTS[0]);
 
-  // Firebase Auth state
+  // Firebase Auth state & Teacher Display Name for Cloud Sync
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
   const [authErrorMsg, setAuthErrorMsg] = useState<string | null>(null);
+  const [unauthorizedDomainHost, setUnauthorizedDomainHost] = useState<string | null>(null);
+  const [teacherName, setTeacherName] = useState<string>(() => getSavedTeacherName());
 
   // Collapsible Sidebar state (can be hidden/toggled via hamburger button)
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(false);
@@ -330,32 +334,55 @@ export default function App() {
     }
   }, [isOnline, pendingItems.length, isSyncing, firebaseUser]);
 
+  const handleTeacherNameChange = (newName: string) => {
+    setTeacherName(newName);
+    setSavedTeacherName(newName);
+  };
+
   // Sign in with Google for Firebase Cloud Sync
   const handleGoogleSignIn = async () => {
     setAuthErrorMsg(null);
+    setUnauthorizedDomainHost(null);
     try {
       const cred = await signInWithPopup(auth, googleProvider);
-      if (cred.user && isOnline) {
-        setIsSyncing(true);
-        await pushCampStateToFirestore(
-          cred.user,
-          campStateRef.current,
-          'Sambungan & penyegerakan ke Firebase Cloud'
-        );
-        setIsSyncing(false);
+      if (cred.user) {
+        if (cred.user.displayName) {
+          handleTeacherNameChange(cred.user.displayName);
+        }
+        if (isOnline) {
+          setIsSyncing(true);
+          await pushCampStateToFirestore(
+            cred.user,
+            campStateRef.current,
+            'Sambungan & penyegerakan ke Firebase Cloud',
+            cred.user.displayName || teacherName
+          );
+          setIsSyncing(false);
+        }
       }
     } catch (err) {
       setIsSyncing(false);
-      setAuthErrorMsg(
-        err instanceof Error ? err.message : 'Gagal log masuk Google.'
-      );
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      if (rawMsg.includes('auth/unauthorized-domain')) {
+        const host =
+          typeof window !== 'undefined' && window.location.hostname
+            ? window.location.hostname
+            : 'domain-vercel-anda.vercel.app';
+        setUnauthorizedDomainHost(host);
+        setAuthErrorMsg(
+          `Domain "${host}" belum didaftarkan dalam senarai Authorized Domains di Firebase Console untuk popup Google. Walau bagaimanapun, Auto-Segerak Pangkalan Data Firebase Firestore sudah pun berfungsi sepenuhnya secara automatik menggunakan Nama Guru di bawah!`
+        );
+      } else {
+        setAuthErrorMsg(rawMsg || 'Gagal log masuk Google.');
+      }
     }
   };
 
   const handleGoogleSignOut = async () => {
     setAuthErrorMsg(null);
+    setUnauthorizedDomainHost(null);
     await signOut(auth);
-    setLastSyncedAt('Auto-Segerak Awan Aktif (Tanpa Akaun Google)');
+    setLastSyncedAt('Auto-Segerak Awan Aktif');
   };
 
   const handleManualCloudSync = async () => {
@@ -365,7 +392,8 @@ export default function App() {
       await pushCampStateToFirestore(
         firebaseUser,
         campStateRef.current,
-        'Penyegerakan manual ke pangkalan data Firebase'
+        'Penyegerakan manual ke pangkalan data Firebase',
+        teacherName
       );
       const nowStr = new Date().toLocaleTimeString('ms-MY', {
         hour: '2-digit',
@@ -383,8 +411,9 @@ export default function App() {
     const actorName =
       firebaseUser?.displayName ||
       firebaseUser?.email ||
+      teacherName.trim() ||
       currentUser?.name ||
-      'GURU SK LUPAK';
+      'Guru SK Lupak';
     const newItem: SyncQueueItem = {
       id: `sync-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       timestamp: new Date().toLocaleTimeString('ms-MY', {
@@ -399,7 +428,7 @@ export default function App() {
     setSyncQueue((prev) => [newItem, ...prev.slice(0, 39)]);
     if (isOnline) {
       setIsSyncing(true);
-      pushCampStateToFirestore(firebaseUser, nextState, description)
+      pushCampStateToFirestore(firebaseUser, nextState, description, actorName)
         .then(() => {
           setLastSyncedAt(`Auto-Segerak Firebase (${newItem.timestamp})`);
         })
@@ -915,7 +944,7 @@ export default function App() {
                         <p className="text-[11px] text-slate-300">
                           {firebaseUser
                             ? `Aktif (${firebaseUser.displayName || firebaseUser.email}) — Semua perubahan disegerakkan secara langsung ke semua peranti guru.`
-                            : 'Aktif secara automatik untuk semua guru & peranti. Setiap markah yang dimasukkan terus dikemas kini pada skrin pengguna lain secara masa nyata.'}
+                            : 'Penyegerakan pangkalan data Firebase Firestore aktif secara automatik merentas semua peranti (termasuk di Vercel) tanpa memerlukan log masuk Google.'}
                         </p>
                       </div>
                     </div>
@@ -926,14 +955,63 @@ export default function App() {
                           : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
                       }`}
                     >
-                      {isOnline ? 'Auto-Segerak' : 'Luar Talian'}
+                      {isOnline ? 'Auto-Segerak Aktif' : 'Luar Talian'}
                     </span>
                   </div>
 
+                  {/* Direct Teacher Name Input for Sync Logs (Works on Vercel without Google OAuth domain allowlist) */}
+                  <div className="pt-1">
+                    <label className="block text-[10px] font-bold text-amber-300 uppercase tracking-wider mb-1">
+                      Nama Guru / Peranan (Direkod dalam Log Penyegerakan Firebase)
+                    </label>
+                    <input
+                      type="text"
+                      value={teacherName}
+                      onChange={(e) => handleTeacherNameChange(e.target.value)}
+                      list="sk-lupak-teachers-list"
+                      placeholder="Masukkan nama anda (cth: PN JUHANI BINTI NORMAN)"
+                      className="w-full min-h-[36px] px-3 py-1.5 rounded-xl glass-input text-xs font-semibold text-white"
+                    />
+                    <datalist id="sk-lupak-teachers-list">
+                      {TEACHER_ACCOUNTS.map((t) => (
+                        <option key={t.id} value={t.name} />
+                      ))}
+                      <option value="TN HJ SABLI BIN MD JANEH" />
+                      <option value="EN HARUN BIN HJ SUNTRAK" />
+                      <option value="EN JAMALUDIN BIN JAPAR" />
+                    </datalist>
+                  </div>
+
                   {authErrorMsg && (
-                    <p className="text-[11px] text-rose-300 bg-rose-500/10 border border-rose-400/20 rounded-lg px-2.5 py-1.5">
-                      {authErrorMsg}
-                    </p>
+                    <div className="text-[11px] text-amber-100 bg-amber-500/15 border border-amber-400/35 rounded-xl p-2.5 space-y-1.5">
+                      <p className="font-semibold text-amber-300">{authErrorMsg}</p>
+                      {unauthorizedDomainHost && (
+                        <div className="text-[10px] text-slate-200 space-y-1">
+                          <p>
+                            Jika anda masih ingin mengaktifkan butang Log Masuk Google pada domain Vercel:
+                          </p>
+                          <ol className="list-decimal list-inside space-y-0.5 text-slate-300">
+                            <li>
+                              Buka{' '}
+                              <a
+                                href="https://console.firebase.google.com/project/e-hadir-sk-lupak/authentication/settings"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sky-300 underline font-semibold"
+                              >
+                                Firebase Console &rarr; Authentication &rarr; Settings &rarr; Authorized domains
+                              </a>
+                            </li>
+                            <li>
+                              Klik <strong>Add domain</strong> dan masukkan:{' '}
+                              <code className="px-1.5 py-0.5 rounded bg-slate-950 text-emerald-300 font-mono">
+                                {unauthorizedDomainHost}
+                              </code>
+                            </li>
+                          </ol>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -952,10 +1030,10 @@ export default function App() {
                         type="button"
                         onClick={handleGoogleSignIn}
                         disabled={!isAuthReady}
-                        className="min-h-[36px] px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#1992f4] to-[#2157e2] hover:brightness-110 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                        className="min-h-[36px] px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-slate-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
                       >
-                        <LogIn className="w-3.5 h-3.5" />
-                        <span>Log Masuk Google (Pilihan)</span>
+                        <LogIn className="w-3.5 h-3.5 text-sky-400" />
+                        <span>Pautkan Google (Pilihan)</span>
                       </button>
                     ) : (
                       <button
