@@ -885,12 +885,27 @@ export const INITIAL_OPR_DATA: OPRReportData = {
     'Mengaplikasikan kemahiran teori dan amali Ikatan & Simpulan, Bantuan Kecemasan, Ikhtiar Hidup (Masakan Rimba), serta Kawad Kaki Asas.',
     'Memupuk semangat kerjasama berpasukan merentas 8 kumpulan (Aldebaran, Acrux, Altair, Capella, Arcturus, Alphard, Pollux & Regulus) dalam cabaran Explorace 8 Stesen.',
   ],
+  ringkasanList: [
+    'Program berjalan lancar selama 3 hari melibatkan 5 Latihan Dalam Kumpulan (LDK): LDK 1 Ikatan & Simpulan, LDK 2 Bantuan Kecemasan, LDK 3 Explorace 8 Stesen (dengan rakaman dron), LDK 4 Ikhtiar Hidup Masakan Rimba, dan LDK 5 Pertandingan Kawad Kaki Asas.',
+    'Penilaian dilaksanakan secara menyeluruh merangkumi kerjasama kumpulan, kemahiran amali stesen, kualiti masakan rimba serta keseragaman kawad kaki antara unit beruniform (TKRS, Pengakap & Pergerakan Puteri Islam Malaysia).',
+    'Majlis Penutup disempurnakan dengan penyampaian 11 Hamper Kumpulan & Unit Beruniform, 6 Trofi Kadet Terbaik serta 81 Sijil Penyertaan kepada semua peserta.',
+  ],
   ringkasanAktiviti:
-    'Program berjalan lancar selama 3 hari melibatkan 5 Latihan Dalam Kumpulan (LDK): LDK 1 Ikatan & Simpulan, LDK 2 Bantuan Kecemasan, LDK 3 Explorace 8 Stesen (dengan rakaman dron), LDK 4 Ikhtiar Hidup Masakan Rimba, dan LDK 5 Pertandingan Kawad Kaki sebelum diakhiri Majlis Penutup & Penyampaian 11 Hamper, 6 Trofi Kadet Terbaik serta 81 Sijil Penyertaan.',
+    'Program berjalan lancar selama 3 hari melibatkan 5 Latihan Dalam Kumpulan (LDK): LDK 1 Ikatan & Simpulan, LDK 2 Bantuan Kecemasan, LDK 3 Explorace 8 Stesen (dengan rakaman dron), LDK 4 Ikhtiar Hidup Masakan Rimba, dan LDK 5 Pertandingan Kawad Kaki Asas.\nPenilaian dilaksanakan secara menyeluruh merangkumi kerjasama kumpulan, kemahiran amali stesen, kualiti masakan rimba serta keseragaman kawad kaki antara unit beruniform (TKRS, Pengakap & Pergerakan Puteri Islam Malaysia).\nMajlis Penutup disempurnakan dengan penyampaian 11 Hamper Kumpulan & Unit Beruniform, 6 Trofi Kadet Terbaik serta 81 Sijil Penyertaan kepada semua peserta.',
+  kekuatanList: [
+    'Komitmen tinggi daripada semua AJK Guru dan AKP sepanjang 3 hari pelaksanaan perkhemahan.',
+    'Pengurusan masa dan kawalan perbarisan yang teratur oleh Kem Komandan serta penggunaan sistem pemarkahan digital masa nyata.',
+    'Penglibatan aktif 100% peserta (81 orang murid Tahap 2) dalam semua 8 stesen Explorace dan aktiviti Ikhtiar Hidup.',
+  ],
   kekuatan:
-    'Komitmen tinggi daripada semua AJK Guru dan AKP, pengurusan masa yang teratur oleh Kem Komandan, penggunaan sistem pemarkahan digital pantas, serta penglibatan aktif 100% peserta dalam semua 8 stesen Explorace.',
+    'Komitmen tinggi daripada semua AJK Guru dan AKP sepanjang 3 hari pelaksanaan perkhemahan.\nPengurusan masa dan kawalan perbarisan yang teratur oleh Kem Komandan serta penggunaan sistem pemarkahan digital masa nyata.\nPenglibatan aktif 100% peserta (81 orang murid Tahap 2) dalam semua 8 stesen Explorace dan aktiviti Ikhtiar Hidup.',
+  penambahbaikanList: [
+    'Menambah bilangan peralatan memasak rimba bagi melancarkan sesi amali Ikhtiar Hidup untuk semua 8 kumpulan.',
+    'Menyediakan kanopi teduhan tambahan di stesen terbuka Explorace sebagai persediaan sekiranya cuaca panas atau hujan.',
+    'Memperuntukkan masa latihan kawad kaki tambahan kepada ketua platun sebelum sesi penilaian rasmi dijalankan.',
+  ],
   penambahbaikan:
-    'Menambah bilangan peralatan memasak rimba dan kanopi teduhan di stesen terbuka sekiranya cuaca panas atau hujan pada penganjuran tahun hadapan.',
+    'Menambah bilangan peralatan memasak rimba bagi melancarkan sesi amali Ikhtiar Hidup untuk semua 8 kumpulan.\nMenyediakan kanopi teduhan tambahan di stesen terbuka Explorace sebagai persediaan sekiranya cuaca panas atau hujan.\nMemperuntukkan masa latihan kawad kaki tambahan kepada ketua platun sebelum sesi penilaian rasmi dijalankan.',
   disediakanOleh: 'EN JAMALUDIN BIN JAPAR',
   jawatanPenyedia: 'Setiausaha Program Perkhemahan SK Lupak 2026',
   disemakOleh: 'EN HARUN BIN HJ SUNTRAK',

@@ -18,6 +18,8 @@ import {
   UniformUnit,
 } from '../types/camp';
 
+import { AdminAccessBanner } from './AdminPasswordModal';
+
 interface ScoringFormsSectionProps {
   groups: GroupInfo[];
   uniformUnits: UniformUnit[];
@@ -25,6 +27,9 @@ interface ScoringFormsSectionProps {
   exploraceScores: ExploraceScoresMap;
   ikhtiarScores: IkhtiarHidupScoresMap;
   kawadScores: KawadKakiScoresMap;
+  isEditUnlocked: boolean;
+  onRequestUnlock: () => void;
+  onLockAgain: () => void;
   onUpdateIkhtiar: (groupId: string, updated: IkhtiarHidupScore, desc: string) => void;
   onUpdateKawad: (unitId: string, updated: KawadKakiScore, desc: string) => void;
 }
@@ -36,18 +41,25 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
   exploraceScores,
   ikhtiarScores,
   kawadScores,
+  isEditUnlocked,
+  onRequestUnlock,
+  onLockAgain,
   onUpdateIkhtiar,
   onUpdateKawad,
 }) => {
   const [activeTab, setActiveTab] = useState<'IKHTIAR' | 'KAWAD' | 'CHARTS'>('IKHTIAR');
 
-  // Helper to update Ikhtiar Hidup field safely
+  // Helper to update Ikhtiar Hidup field safely (requires admin password unlock)
   const handleIkhtiarField = (
     group: GroupInfo,
     field: keyof IkhtiarHidupScore,
     maxVal: number,
     rawVal: number
   ) => {
+    if (!isEditUnlocked) {
+      onRequestUnlock();
+      return;
+    }
     const current = ikhtiarScores[group.id] || { kerjasama: 0, penyediaan: 0, rasa: 0 };
     const clamped = Math.max(0, Math.min(maxVal, Math.round(rawVal)));
     const next = { ...current, [field]: clamped };
@@ -58,13 +70,17 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
     );
   };
 
-  // Helper to update Kawad Kaki field safely
+  // Helper to update Kawad Kaki field safely (requires admin password unlock)
   const handleKawadField = (
     unit: UniformUnit,
     field: keyof KawadKakiScore,
     maxVal: number,
     rawVal: number
   ) => {
+    if (!isEditUnlocked) {
+      onRequestUnlock();
+      return;
+    }
     const current = kawadScores[unit.id] || { arahan: 0, keseragaman: 0, nadaSuara: 0 };
     const clamped = Math.max(0, Math.min(maxVal, Math.round(rawVal)));
     const next = { ...current, [field]: clamped };
@@ -186,6 +202,14 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
         </div>
       </div>
 
+      {/* Password / View-Only Status Banner */}
+      <AdminAccessBanner
+        isUnlocked={isEditUnlocked}
+        sectionName="Komponen Pemarkahan (Ikhtiar Hidup & Kawad Kaki)"
+        onRequestUnlock={onRequestUnlock}
+        onLockAgain={onLockAgain}
+      />
+
       {/* TAB 1: BORANG PEMARKAHAN IKHTIAR HIDUP */}
       {activeTab === 'IKHTIAR' && (
         <div className="glass-panel rounded-2xl sm:rounded-3xl p-4 sm:p-6">
@@ -272,10 +296,16 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
                           min={0}
                           max={rubric.max}
                           value={rubric.val}
+                          readOnly={!isEditUnlocked}
+                          onClick={() => {
+                            if (!isEditUnlocked) onRequestUnlock();
+                          }}
                           onChange={(e) =>
                             handleIkhtiarField(grp, rubric.key, rubric.max, Number(e.target.value))
                           }
-                          className="w-13 h-8 text-center rounded-lg glass-input font-mono font-bold text-xs text-white tabular-nums"
+                          className={`w-13 h-8 text-center rounded-lg glass-input font-mono font-bold text-xs text-white tabular-nums ${
+                            !isEditUnlocked ? 'cursor-pointer opacity-80' : ''
+                          }`}
                         />
                         <button
                           type="button"
@@ -350,10 +380,16 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
                             min={0}
                             max={30}
                             value={sc.kerjasama}
+                            readOnly={!isEditUnlocked}
+                            onClick={() => {
+                              if (!isEditUnlocked) onRequestUnlock();
+                            }}
                             onChange={(e) =>
                               handleIkhtiarField(grp, 'kerjasama', 30, Number(e.target.value))
                             }
-                            className="w-16 min-h-[38px] text-center rounded-lg glass-input font-mono font-bold text-sm text-white tabular-nums"
+                            className={`w-16 min-h-[38px] text-center rounded-lg glass-input font-mono font-bold text-sm text-white tabular-nums ${
+                              !isEditUnlocked ? 'cursor-pointer opacity-80' : ''
+                            }`}
                           />
                           <button
                             type="button"
@@ -384,10 +420,16 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
                             min={0}
                             max={30}
                             value={sc.penyediaan}
+                            readOnly={!isEditUnlocked}
+                            onClick={() => {
+                              if (!isEditUnlocked) onRequestUnlock();
+                            }}
                             onChange={(e) =>
                               handleIkhtiarField(grp, 'penyediaan', 30, Number(e.target.value))
                             }
-                            className="w-16 min-h-[38px] text-center rounded-lg glass-input font-mono font-bold text-sm text-white tabular-nums"
+                            className={`w-16 min-h-[38px] text-center rounded-lg glass-input font-mono font-bold text-sm text-white tabular-nums ${
+                              !isEditUnlocked ? 'cursor-pointer opacity-80' : ''
+                            }`}
                           />
                           <button
                             type="button"
@@ -416,10 +458,16 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
                             min={0}
                             max={40}
                             value={sc.rasa}
+                            readOnly={!isEditUnlocked}
+                            onClick={() => {
+                              if (!isEditUnlocked) onRequestUnlock();
+                            }}
                             onChange={(e) =>
                               handleIkhtiarField(grp, 'rasa', 40, Number(e.target.value))
                             }
-                            className="w-16 min-h-[38px] text-center rounded-lg glass-input font-mono font-bold text-sm text-white tabular-nums"
+                            className={`w-16 min-h-[38px] text-center rounded-lg glass-input font-mono font-bold text-sm text-white tabular-nums ${
+                              !isEditUnlocked ? 'cursor-pointer opacity-80' : ''
+                            }`}
                           />
                           <button
                             type="button"
@@ -525,10 +573,16 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
                           min={0}
                           max={rubric.max}
                           value={rubric.val}
+                          readOnly={!isEditUnlocked}
+                          onClick={() => {
+                            if (!isEditUnlocked) onRequestUnlock();
+                          }}
                           onChange={(e) =>
                             handleKawadField(unit, rubric.key, rubric.max, Number(e.target.value))
                           }
-                          className="w-13 h-8 text-center rounded-lg glass-input font-mono font-bold text-xs text-white tabular-nums"
+                          className={`w-13 h-8 text-center rounded-lg glass-input font-mono font-bold text-xs text-white tabular-nums ${
+                            !isEditUnlocked ? 'cursor-pointer opacity-80' : ''
+                          }`}
                         />
                         <button
                           type="button"
@@ -613,10 +667,16 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
                             min={0}
                             max={40}
                             value={sc.arahan}
+                            readOnly={!isEditUnlocked}
+                            onClick={() => {
+                              if (!isEditUnlocked) onRequestUnlock();
+                            }}
                             onChange={(e) =>
                               handleKawadField(unit, 'arahan', 40, Number(e.target.value))
                             }
-                            className="w-16 min-h-[40px] text-center rounded-lg glass-input font-mono font-bold text-sm text-white tabular-nums"
+                            className={`w-16 min-h-[40px] text-center rounded-lg glass-input font-mono font-bold text-sm text-white tabular-nums ${
+                              !isEditUnlocked ? 'cursor-pointer opacity-80' : ''
+                            }`}
                           />
                           <button
                             type="button"
@@ -647,6 +707,10 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
                             min={0}
                             max={30}
                             value={sc.keseragaman}
+                            readOnly={!isEditUnlocked}
+                            onClick={() => {
+                              if (!isEditUnlocked) onRequestUnlock();
+                            }}
                             onChange={(e) =>
                               handleKawadField(
                                 unit,
@@ -655,7 +719,9 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
                                 Number(e.target.value)
                               )
                             }
-                            className="w-16 min-h-[40px] text-center rounded-lg glass-input font-mono font-bold text-sm text-white tabular-nums"
+                            className={`w-16 min-h-[40px] text-center rounded-lg glass-input font-mono font-bold text-sm text-white tabular-nums ${
+                              !isEditUnlocked ? 'cursor-pointer opacity-80' : ''
+                            }`}
                           />
                           <button
                             type="button"
@@ -686,6 +752,10 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
                             min={0}
                             max={30}
                             value={sc.nadaSuara}
+                            readOnly={!isEditUnlocked}
+                            onClick={() => {
+                              if (!isEditUnlocked) onRequestUnlock();
+                            }}
                             onChange={(e) =>
                               handleKawadField(
                                 unit,
@@ -694,7 +764,9 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
                                 Number(e.target.value)
                               )
                             }
-                            className="w-16 min-h-[40px] text-center rounded-lg glass-input font-mono font-bold text-sm text-white tabular-nums"
+                            className={`w-16 min-h-[40px] text-center rounded-lg glass-input font-mono font-bold text-sm text-white tabular-nums ${
+                              !isEditUnlocked ? 'cursor-pointer opacity-80' : ''
+                            }`}
                           />
                           <button
                             type="button"

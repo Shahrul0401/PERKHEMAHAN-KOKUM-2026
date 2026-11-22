@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut, User } from 'firebase/auth';
 import {
+  AlertTriangle,
   Award,
   Calendar,
   CheckCircle2,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AJKSection } from './components/AJKSection';
+import { AdminPasswordModal } from './components/AdminPasswordModal';
 import { AwardsAndOPRSection } from './components/AwardsAndOPRSection';
 import { ExploraceSection } from './components/ExploraceSection';
 import { PWAInstallButton } from './components/PWAInstallButton';
@@ -52,8 +54,17 @@ import {
 const STORAGE_STATE_KEY = 'sk_lupak_2026_camp_state_v1';
 const STORAGE_QUEUE_KEY = 'sk_lupak_2026_sync_queue_v1';
 const STORAGE_WELCOME_KEY = 'sk_lupak_2026_entered_v1';
+const STORAGE_ADMIN_UNLOCKED_KEY = 'sk_lupak_2026_admin_unlocked_v1';
 
 type MainTab = 'JADUAL' | 'EXPLORACE' | 'PEMARKAHAN' | 'AJK' | 'ANUGERAH_OPR';
+
+interface ToastNotification {
+  id: string;
+  status: 'SUCCESS' | 'OFFLINE' | 'ERROR';
+  title: string;
+  message: string;
+  timestamp: string;
+}
 
 const MENU_ITEMS: {
   id: MainTab;
@@ -116,31 +127,135 @@ function normalizeUnitTerminology(text: string): string {
     .replace(/\bKRS\b/g, 'TKRS');
 }
 
+function syncKawadAwardsWithScores(
+  awards: AwardItem[],
+  kawadScores: Record<string, KawadKakiScore>,
+  uniformUnits = INITIAL_CAMP_STATE.uniformUnits
+): AwardItem[] {
+  const sortedUnits = [...uniformUnits]
+    .map((u) => {
+      const sc = kawadScores[u.id] || { arahan: 0, keseragaman: 0, nadaSuara: 0 };
+      const total = sc.arahan + sc.keseragaman + sc.nadaSuara;
+      return { unit: u, total };
+    })
+    .sort((a, b) => b.total - a.total);
+
+  return awards.map((a) => {
+    if (a.autoKey === 'KAWAD_1' && sortedUnits[0]) {
+      return {
+        ...a,
+        winner: `${sortedUnits[0].unit.name} (${sortedUnits[0].total}%)`,
+      };
+    }
+    if (a.autoKey === 'KAWAD_2' && sortedUnits[1]) {
+      return {
+        ...a,
+        winner: `${sortedUnits[1].unit.name} (${sortedUnits[1].total}%)`,
+      };
+    }
+    if (a.autoKey === 'KAWAD_3' && sortedUnits[2]) {
+      return {
+        ...a,
+        winner: `${sortedUnits[2].unit.name} (${sortedUnits[2].total}%)`,
+      };
+    }
+    return a;
+  });
+}
+
+function resolveOprList(
+  existingList: string[] | undefined,
+  legacyText: string | undefined,
+  defaultList: string[],
+  legacyDefaultPrefix: string
+): string[] {
+  if (Array.isArray(existingList) && existingList.length > 0) {
+    return existingList.map((item) => normalizeUnitTerminology(String(item)));
+  }
+  const trimmed = (legacyText || '').trim();
+  if (!trimmed || trimmed.startsWith(legacyDefaultPrefix)) {
+    return [...defaultList];
+  }
+  return trimmed
+    .split('\n')
+    .map((s) => normalizeUnitTerminology(s.replace(/^\d+[\.\)]\s*/, '').trim()))
+    .filter((s) => s.length > 0);
+}
+
 function normalizeCampState(raw: CampAppState): CampAppState {
+  const kawadScores = raw.kawadScores || INITIAL_CAMP_STATE.kawadScores;
+  const normalizedAwards = (raw.awards || INITIAL_CAMP_STATE.awards).map((a) => ({
+    ...a,
+    title: normalizeUnitTerminology(a.title),
+    winner: normalizeUnitTerminology(a.winner),
+    notes: normalizeUnitTerminology(a.notes),
+  }));
+
+  const defaultOpr = INITIAL_CAMP_STATE.oprData;
+  const rawOpr = raw.oprData;
+
+  const normalizedOpr: OPRReportData = rawOpr
+    ? (() => {
+        const objektif =
+          Array.isArray(rawOpr.objektif) && rawOpr.objektif.length > 0
+            ? rawOpr.objektif.map((o) => normalizeUnitTerminology(String(o)))
+            : [...defaultOpr.objektif];
+
+        const ringkasanList = resolveOprList(
+          rawOpr.ringkasanList,
+          rawOpr.ringkasanAktiviti,
+          defaultOpr.ringkasanList || [],
+          'Program berjalan lancar selama 3 hari melibatkan 5 Latihan Dalam Kumpulan (LDK): LDK 1 Ikatan & Simpulan, LDK 2 Bantuan Kecemasan, LDK 3 Explorace 8 Stesen (dengan rakaman dron), LDK 4 Ikhtiar Hidup Masakan Rimba, dan LDK 5 Pertandingan Kawad Kaki sebelum diakhiri'
+        );
+
+        const kekuatanList = resolveOprList(
+          rawOpr.kekuatanList,
+          rawOpr.kekuatan,
+          defaultOpr.kekuatanList || [],
+          'Komitmen tinggi daripada semua AJK Guru dan AKP, pengurusan masa yang teratur oleh Kem Komandan'
+        );
+
+        const penambahbaikanList = resolveOprList(
+          rawOpr.penambahbaikanList,
+          rawOpr.penambahbaikan,
+          defaultOpr.penambahbaikanList || [],
+          'Menambah bilangan peralatan memasak rimba dan kanopi teduhan di stesen terbuka sekiranya cuaca panas'
+        );
+
+        return {
+          ...defaultOpr,
+          ...rawOpr,
+          anjuran: normalizeUnitTerminology(rawOpr.anjuran || defaultOpr.anjuran),
+          objektif,
+          ringkasanList,
+          ringkasanAktiviti: ringkasanList.join('\n'),
+          kekuatanList,
+          kekuatan: kekuatanList.join('\n'),
+          penambahbaikanList,
+          penambahbaikan: penambahbaikanList.join('\n'),
+          photos: (rawOpr.photos || defaultOpr.photos).map((p) => ({
+            ...p,
+            caption: normalizeUnitTerminology(p.caption),
+          })),
+        };
+      })()
+    : defaultOpr;
+
   return {
     ...raw,
     uniformUnits: INITIAL_CAMP_STATE.uniformUnits,
+    kawadScores,
     schedule: (raw.schedule || INITIAL_CAMP_STATE.schedule).map((s) => ({
       ...s,
       title: normalizeUnitTerminology(s.title),
       subtitle: normalizeUnitTerminology(s.subtitle),
     })),
-    awards: (raw.awards || INITIAL_CAMP_STATE.awards).map((a) => ({
-      ...a,
-      title: normalizeUnitTerminology(a.title),
-      winner: normalizeUnitTerminology(a.winner),
-      notes: normalizeUnitTerminology(a.notes),
-    })),
-    oprData: raw.oprData
-      ? {
-          ...raw.oprData,
-          anjuran: normalizeUnitTerminology(raw.oprData.anjuran),
-          photos: (raw.oprData.photos || []).map((p) => ({
-            ...p,
-            caption: normalizeUnitTerminology(p.caption),
-          })),
-        }
-      : INITIAL_CAMP_STATE.oprData,
+    awards: syncKawadAwardsWithScores(
+      normalizedAwards,
+      kawadScores,
+      INITIAL_CAMP_STATE.uniformUnits
+    ),
+    oprData: normalizedOpr,
   };
 }
 
@@ -203,6 +318,82 @@ export default function App() {
   const [lastSyncedAt, setLastSyncedAt] = useState<string>('Tersimpan & Disegerak');
   const [showSyncDrawer, setShowSyncDrawer] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<MainTab>('EXPLORACE');
+  const [toast, setToast] = useState<ToastNotification | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
+
+  const showNotification = (
+    status: ToastNotification['status'],
+    title: string,
+    message: string
+  ) => {
+    if (toastTimerRef.current) {
+      window.clearTimeout(toastTimerRef.current);
+    }
+    const nowStr = new Date().toLocaleTimeString('ms-MY', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    setToast({
+      id: `toast-${Date.now()}`,
+      status,
+      title,
+      message,
+      timestamp: nowStr,
+    });
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+    }, status === 'ERROR' ? 6000 : 3400);
+  };
+
+  // Persistent Admin Password Unlock State (remembered per user/device once unlocked)
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(STORAGE_ADMIN_UNLOCKED_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [showPasswordModal, setShowPasswordModal] = useState<boolean>(false);
+
+  // Prompt password modal when switching to Pemarkahan or Anugerah & Pelaporan if not yet unlocked
+  useEffect(() => {
+    if (
+      !isAdminUnlocked &&
+      (activeTab === 'PEMARKAHAN' || activeTab === 'ANUGERAH_OPR')
+    ) {
+      setShowPasswordModal(true);
+    }
+  }, [activeTab, isAdminUnlocked]);
+
+  const handleUnlockAdminSuccess = () => {
+    setIsAdminUnlocked(true);
+    setShowPasswordModal(false);
+    try {
+      localStorage.setItem(STORAGE_ADMIN_UNLOCKED_KEY, 'true');
+    } catch {
+      // ignore
+    }
+    showNotification(
+      'SUCCESS',
+      'Akses Kemaskini Dibuka!',
+      'Password disahkan. Anda kini boleh mengemaskini Pemarkahan serta Anugerah & Pelaporan tanpa perlu memasukkan password lagi.'
+    );
+  };
+
+  const handleLockAdmin = () => {
+    setIsAdminUnlocked(false);
+    try {
+      localStorage.removeItem(STORAGE_ADMIN_UNLOCKED_KEY);
+    } catch {
+      // ignore
+    }
+    showNotification(
+      'OFFLINE',
+      'Dikunci ke Mod Paparan Sahaja',
+      'Komponen Pemarkahan dan Anugerah & Pelaporan kini berada dalam mod View Only.'
+    );
+  };
 
   // Track Firebase Auth state
   useEffect(() => {
@@ -326,6 +517,18 @@ export default function App() {
             second: '2-digit',
           });
           setLastSyncedAt(`Disegerak ke Firebase pada ${nowStr}`);
+          showNotification(
+            'SUCCESS',
+            'Berjaya Disegerak Semula!',
+            'Semua data & markah luar talian telah berjaya disimpan ke pangkalan data Firebase.'
+          );
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : 'Ralat rangkaian semasa menyegerak.';
+          showNotification(
+            'ERROR',
+            'Gagal Menyimpan ke Pangkalan Data Awan',
+            `Perubahan masih tersimpan pada peranti ini. (${errMsg})`
+          );
         } finally {
           setIsSyncing(false);
         }
@@ -386,7 +589,14 @@ export default function App() {
   };
 
   const handleManualCloudSync = async () => {
-    if (!isOnline) return;
+    if (!isOnline) {
+      showNotification(
+        'ERROR',
+        'Gagal Menyegerak (Tiada Sambungan Internet)',
+        'Peranti sedang berada dalam Mod Luar Talian. Data disimpan secara tempatan.'
+      );
+      return;
+    }
     setIsSyncing(true);
     try {
       await pushCampStateToFirestore(
@@ -401,6 +611,18 @@ export default function App() {
         second: '2-digit',
       });
       setLastSyncedAt(`Disegerak ke Firebase (${nowStr})`);
+      showNotification(
+        'SUCCESS',
+        'Berjaya Disimpan & Disegerak!',
+        'Semua markah, jadual dan laporan telah berjaya dikemas kini ke Firebase.'
+      );
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : 'Gagal menghubungi pelayan Firebase.';
+      showNotification(
+        'ERROR',
+        'Gagal Menyimpan / Menyegerak Data',
+        `Ralat penyegerakan: ${errMsg}`
+      );
     } finally {
       setIsSyncing(false);
     }
@@ -426,15 +648,58 @@ export default function App() {
       synced: isOnline,
     };
     setSyncQueue((prev) => [newItem, ...prev.slice(0, 39)]);
+
+    // Check localStorage availability
+    let localSaveFailed = false;
+    try {
+      localStorage.setItem(STORAGE_STATE_KEY, JSON.stringify(nextState));
+    } catch {
+      localSaveFailed = true;
+    }
+
     if (isOnline) {
       setIsSyncing(true);
       pushCampStateToFirestore(firebaseUser, nextState, description, actorName)
         .then(() => {
           setLastSyncedAt(`Auto-Segerak Firebase (${newItem.timestamp})`);
+          showNotification(
+            'SUCCESS',
+            'Berjaya Disimpan & Dikemas Kini',
+            description
+          );
+        })
+        .catch((err) => {
+          const errMsg = err instanceof Error ? err.message : 'Gagal menyimpan ke pelayan.';
+          setSyncQueue((prev) =>
+            prev.map((item) =>
+              item.id === newItem.id ? { ...item, synced: false } : item
+            )
+          );
+          showNotification(
+            'ERROR',
+            'Gagal Menyimpan ke Awan Firebase',
+            `${description} — ${
+              localSaveFailed
+                ? 'Storan penuh atau ralat pelayan.'
+                : 'Disimpan secara tempatan, cuba lagi sebentar.'
+            } (${errMsg})`
+          );
         })
         .finally(() => {
           setIsSyncing(false);
         });
+    } else if (localSaveFailed) {
+      showNotification(
+        'ERROR',
+        'Gagal Menyimpan Data!',
+        `Perubahan "${description}" gagal disimpan kerana ruang storan peranti penuh.`
+      );
+    } else {
+      showNotification(
+        'OFFLINE',
+        'Disimpan (Mod Luar Talian)',
+        `${description} — Akan disegerak automatik apabila talian pulih.`
+      );
     }
   };
 
@@ -524,13 +789,19 @@ export default function App() {
     desc: string
   ) => {
     const prev = campStateRef.current;
+    const nextKawadScores = {
+      ...prev.kawadScores,
+      [unitId]: updated,
+    };
     const next: CampAppState = {
       ...prev,
       lastUpdated: new Date().toISOString(),
-      kawadScores: {
-        ...prev.kawadScores,
-        [unitId]: updated,
-      },
+      kawadScores: nextKawadScores,
+      awards: syncKawadAwardsWithScores(
+        prev.awards,
+        nextKawadScores,
+        prev.uniformUnits
+      ),
     };
     setCampState(next);
     recordChange(desc, next);
@@ -833,6 +1104,9 @@ export default function App() {
                 exploraceScores={campState.exploraceScores}
                 ikhtiarScores={campState.ikhtiarScores}
                 kawadScores={campState.kawadScores}
+                isEditUnlocked={isAdminUnlocked}
+                onRequestUnlock={() => setShowPasswordModal(true)}
+                onLockAgain={handleLockAdmin}
                 onUpdateIkhtiar={handleUpdateIkhtiar}
                 onUpdateKawad={handleUpdateKawad}
               />
@@ -848,6 +1122,9 @@ export default function App() {
             {activeTab === 'ANUGERAH_OPR' && (
               <AwardsAndOPRSection
                 state={campState}
+                isEditUnlocked={isAdminUnlocked}
+                onRequestUnlock={() => setShowPasswordModal(true)}
+                onLockAgain={handleLockAdmin}
                 onUpdateAwards={handleUpdateAwards}
                 onUpdateOPR={handleUpdateOPR}
               />
@@ -1131,6 +1408,106 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Pop-up Toast Notification for Save / Update Success, Offline Queue, or Failure */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            key={toast.id}
+            initial={{ opacity: 0, y: -24, scale: 0.94 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -18, scale: 0.94 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            role="status"
+            aria-live="polite"
+            className="fixed top-16 sm:top-20 right-3 sm:right-6 left-3 sm:left-auto z-[70] sm:w-full sm:max-w-md pointer-events-auto"
+          >
+            <div
+              className={`relative overflow-hidden rounded-2xl p-3.5 sm:p-4 border shadow-2xl backdrop-blur-2xl flex items-start gap-3 ${
+                toast.status === 'SUCCESS'
+                  ? 'bg-[#082c25]/95 border-emerald-400/50 text-emerald-50 shadow-emerald-950/60'
+                  : toast.status === 'OFFLINE'
+                  ? 'bg-[#2e2007]/95 border-amber-400/50 text-amber-50 shadow-amber-950/60'
+                  : 'bg-[#350d17]/95 border-rose-400/60 text-rose-50 shadow-rose-950/60'
+              }`}
+            >
+              <div
+                className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border ${
+                  toast.status === 'SUCCESS'
+                    ? 'bg-emerald-500/25 border-emerald-400/40 text-emerald-300'
+                    : toast.status === 'OFFLINE'
+                    ? 'bg-amber-500/25 border-amber-400/40 text-amber-300'
+                    : 'bg-rose-500/25 border-rose-400/45 text-rose-300'
+                }`}
+              >
+                {toast.status === 'SUCCESS' ? (
+                  <CheckCircle2 className="w-5 h-5" />
+                ) : toast.status === 'OFFLINE' ? (
+                  <CloudOff className="w-5 h-5" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5" />
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <p
+                    className={`font-display font-extrabold text-xs sm:text-sm tracking-tight ${
+                      toast.status === 'SUCCESS'
+                        ? 'text-emerald-300'
+                        : toast.status === 'OFFLINE'
+                        ? 'text-amber-300'
+                        : 'text-rose-300'
+                    }`}
+                  >
+                    {toast.title}
+                  </p>
+                  <span className="font-mono text-[10px] opacity-75 shrink-0">
+                    {toast.timestamp}
+                  </span>
+                </div>
+                <p className="text-[11px] sm:text-xs text-slate-100/95 mt-0.5 leading-snug break-words">
+                  {toast.message}
+                </p>
+
+                {toast.status === 'ERROR' && isOnline && (
+                  <button
+                    type="button"
+                    onClick={handleManualCloudSync}
+                    className="mt-2 min-h-[28px] px-2.5 py-1 rounded-lg bg-rose-400/25 hover:bg-rose-400/35 border border-rose-300/40 text-[11px] font-bold text-rose-100 inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>Cuba Simpan Semula</span>
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setToast(null)}
+                className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/15 flex items-center justify-center text-slate-300 hover:text-white transition-colors shrink-0 cursor-pointer"
+                aria-label="Tutup Pemberitahuan"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal: Masukkan Password for Pemarkahan and Anugerah & Pelaporan */}
+      <AdminPasswordModal
+        isOpen={showPasswordModal}
+        contextLabel={
+          activeTab === 'PEMARKAHAN'
+            ? 'Komponen Pemarkahan'
+            : activeTab === 'ANUGERAH_OPR'
+            ? 'Komponen Anugerah & Pelaporan'
+            : 'Pemarkahan & Anugerah / Pelaporan'
+        }
+        onClose={() => setShowPasswordModal(false)}
+        onUnlockSuccess={handleUnlockAdminSuccess}
+      />
     </div>
   );
 }

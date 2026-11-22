@@ -311,29 +311,43 @@ export async function exportOPRPDF(state: CampAppState): Promise<void> {
   const contentWidth = pageWidth - margin * 2;
   const opr = state.oprData;
 
+  const toCleanList = (arr: string[] | undefined, fallbackStr: string): string[] => {
+    const raw =
+      Array.isArray(arr) && arr.length > 0
+        ? arr
+        : (fallbackStr || '').split('\n');
+    const filtered = raw.map((s) => s.trim()).filter((s) => s.length > 0);
+    return filtered.length > 0 ? filtered : ['-'];
+  };
+
+  const objektifItems = toCleanList(opr.objektif, '');
+  const ringkasanItems = toCleanList(opr.ringkasanList, opr.ringkasanAktiviti);
+  const kekuatanItems = toCleanList(opr.kekuatanList, opr.kekuatan);
+  const penambahbaikanItems = toCleanList(opr.penambahbaikanList, opr.penambahbaikan);
+
   // Top Header OPR Style
   doc.setFillColor(6, 44, 43);
-  doc.rect(0, 0, pageWidth, 28, 'F');
+  doc.rect(0, 0, pageWidth, 26, 'F');
 
   doc.setTextColor(253, 230, 138);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8.5);
-  doc.text('SEKOLAH KEBANGSAAN LUPAK', pageWidth / 2, 8.5, { align: 'center' });
+  doc.text('SEKOLAH KEBANGSAAN LUPAK', pageWidth / 2, 8, { align: 'center' });
 
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(13.5);
-  doc.text('ONE PAGE REPORT (OPR) — LAPORAN AKTIVITI SEKOLAH', pageWidth / 2, 16, { align: 'center' });
+  doc.setFontSize(13);
+  doc.text('ONE PAGE REPORT (OPR) — LAPORAN AKTIVITI KOKURIKULUM', pageWidth / 2, 15, { align: 'center' });
 
   doc.setTextColor(167, 243, 208);
-  doc.setFontSize(9);
-  doc.text(opr.namaProgram.toUpperCase(), pageWidth / 2, 23, { align: 'center' });
+  doc.setFontSize(8.5);
+  doc.text(opr.namaProgram.toUpperCase(), pageWidth / 2, 21.5, { align: 'center' });
 
-  let y = 33;
+  let y = 30;
 
   // Info Grid Box
   doc.setDrawColor(203, 213, 225);
   doc.setFillColor(248, 250, 252);
-  doc.roundedRect(margin, y, contentWidth, 34, 2, 2, 'FD');
+  doc.roundedRect(margin, y, contentWidth, 31, 2, 2, 'FD');
 
   const metaRows: [string, string, string, string][] = [
     ['NAMA PROGRAM', opr.namaProgram, 'TARIKH', opr.tarikh],
@@ -342,114 +356,169 @@ export async function exportOPRPDF(state: CampAppState): Promise<void> {
     ['PENYELARAS', 'ALIF AKRAM BIN NOR KASANI', 'KEHADIRAN', opr.kehadiran],
   ];
 
-  let my = y + 6;
+  let my = y + 5.5;
   metaRows.forEach(([k1, v1, k2, v2]) => {
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setTextColor(15, 23, 42);
     doc.text(`${k1}:`, margin + 3, my);
     doc.setFont('helvetica', 'normal');
-    doc.text(doc.splitTextToSize(v1, 70)[0] || '', margin + 27, my);
+    doc.text(doc.splitTextToSize(v1 || '-', 68)[0] || '', margin + 27, my);
 
     doc.setFont('helvetica', 'bold');
-    doc.text(`${k2}:`, margin + 102, my);
+    doc.text(`${k2}:`, margin + 99, my);
     doc.setFont('helvetica', 'normal');
-    doc.text(doc.splitTextToSize(v2, 60)[0] || '', margin + 123, my);
-    my += 7.5;
+    doc.text(doc.splitTextToSize(v2 || '-', 63)[0] || '', margin + 120, my);
+    my += 6.8;
   });
 
-  y += 38;
+  y += 34;
 
-  // OBJEKTIF PROGRAM
-  doc.setFillColor(15, 23, 42);
-  doc.rect(margin, y, contentWidth, 6, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('OBJEKTIF PROGRAM', margin + 3, y + 4.2);
-  y += 6;
+  // Helper to measure and render a full-width numbered list section
+  const renderFullWidthNumberedSection = (
+    title: string,
+    headerRgb: [number, number, number],
+    items: string[],
+    footerSummaryLine?: string
+  ) => {
+    const lineH = 3.7;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.4);
+    const wrappedItems = items.map((item, idx) =>
+      doc.splitTextToSize(`${idx + 1}. ${item}`, contentWidth - 6) as string[]
+    );
+    const totalLines = wrappedItems.reduce((acc, lines) => acc + lines.length, 0);
+    const extraFooterH = footerSummaryLine ? 5.5 : 0;
+    const boxH = Math.max(14, totalLines * lineH + 4.5 + extraFooterH);
 
-  doc.setDrawColor(203, 213, 225);
-  doc.rect(margin, y, contentWidth, 22);
-  doc.setTextColor(30, 41, 59);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.8);
-  let oy = y + 4.8;
-  opr.objektif.slice(0, 3).forEach((obj, i) => {
-    const lines = doc.splitTextToSize(`${i + 1}. ${obj}`, contentWidth - 6);
-    doc.text(lines.slice(0, 2), margin + 3, oy);
-    oy += lines.slice(0, 2).length * 4;
-  });
-  y += 25;
+    if (y + 6 + boxH > 282) {
+      doc.addPage();
+      y = 15;
+    }
 
-  // RINGKASAN IMPAK & KEPUTUSAN UTAMA
-  doc.setFillColor(6, 78, 59);
-  doc.rect(margin, y, contentWidth, 6, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('RINGKASAN PELAKSANAAN AKTIVITI & PENCAPAIAN UTAMA', margin + 3, y + 4.2);
-  y += 6;
+    doc.setFillColor(headerRgb[0], headerRgb[1], headerRgb[2]);
+    doc.rect(margin, y, contentWidth, 5.8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.8);
+    doc.text(title, margin + 3, y + 4);
+    y += 5.8;
 
-  doc.rect(margin, y, contentWidth, 24);
-  doc.setTextColor(30, 41, 59);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.8);
-  const summaryLines = doc.splitTextToSize(opr.ringkasanAktiviti, contentWidth - 6);
-  doc.text(summaryLines.slice(0, 3), margin + 3, y + 5);
+    doc.setDrawColor(203, 213, 225);
+    doc.rect(margin, y, contentWidth, boxH);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.4);
 
+    let cy = y + 4.2;
+    wrappedItems.forEach((lines) => {
+      doc.text(lines, margin + 3, cy);
+      cy += lines.length * lineH;
+    });
+
+    if (footerSummaryLine) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.2);
+      doc.setTextColor(6, 78, 59);
+      const summaryLine = doc.splitTextToSize(footerSummaryLine, contentWidth - 6)[0] || '';
+      doc.text(summaryLine, margin + 3, cy + 1.2);
+    }
+
+    y += boxH + 2.8;
+  };
+
+  // 1. OBJEKTIF PROGRAM
+  renderFullWidthNumberedSection('OBJEKTIF PROGRAM', [15, 23, 42], objektifItems);
+
+  // 2. RINGKASAN AKTIVITI & KEPUTUSAN RASMI
   const expWinner = state.awards.find((a) => a.autoKey === 'EXPLORACE_TOP')?.winner || 'ALDEBARAN';
   const ikhWinner = state.awards.find((a) => a.autoKey === 'IKHTIAR_TOP')?.winner || 'ALTAIR';
   const kawadWinner = state.awards.find((a) => a.autoKey === 'KAWAD_1')?.winner || 'TUNAS KADET REMAJA SEKOLAH';
 
-  doc.setFont('helvetica', 'bold');
-  doc.setTextColor(6, 78, 59);
-  doc.text(
-    `Keputusan Utama: Terbaik Explorace: ${expWinner}  |  Terbaik Masakan Rimba: ${ikhWinner}  |  Johan Kawad Kaki: ${kawadWinner}`,
-    margin + 3,
-    y + 20.5
+  renderFullWidthNumberedSection(
+    'RINGKASAN AKTIVITI & KEPUTUSAN RASMI',
+    [6, 78, 59],
+    ringkasanItems,
+    `Keputusan Utama: Terbaik Explorace: ${expWinner}  |  Terbaik Masakan Rimba: ${ikhWinner}  |  Johan Kawad Kaki: ${kawadWinner}`
   );
-  y += 27;
 
-  // KEKUATAN & PENAMBAHBAIKAN (2 Columns)
+  // 3. KEKUATAN / IMPAK & PENAMBAHBAIKAN (2 Columns with numbered lists)
   const halfW = (contentWidth - 3) / 2;
+  const colLineH = 3.6;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.3);
+
+  const wrappedKekuatan = kekuatanItems.map((item, idx) =>
+    doc.splitTextToSize(`${idx + 1}. ${item}`, halfW - 6) as string[]
+  );
+  const wrappedPenambahbaikan = penambahbaikanItems.map((item, idx) =>
+    doc.splitTextToSize(`${idx + 1}. ${item}`, halfW - 6) as string[]
+  );
+
+  const kekuatanLineCount = wrappedKekuatan.reduce((acc, l) => acc + l.length, 0);
+  const penambahbaikanLineCount = wrappedPenambahbaikan.reduce((acc, l) => acc + l.length, 0);
+  const twoColBoxH = Math.max(15, Math.max(kekuatanLineCount, penambahbaikanLineCount) * colLineH + 4.5);
+
+  if (y + 6 + twoColBoxH > 282) {
+    doc.addPage();
+    y = 15;
+  }
+
   doc.setFillColor(30, 58, 138);
-  doc.rect(margin, y, halfW, 6, 'F');
-  doc.rect(margin + halfW + 3, y, halfW, 6, 'F');
+  doc.rect(margin, y, halfW, 5.8, 'F');
+  doc.rect(margin + halfW + 3, y, halfW, 5.8, 'F');
 
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('KEKUATAN / IMPAK PROGRAM', margin + 3, y + 4.2);
-  doc.text('CADANGAN PENAMBAHBAIKAN', margin + halfW + 6, y + 4.2);
-  y += 6;
+  doc.setFontSize(7.8);
+  doc.text('KEKUATAN / IMPAK:', margin + 3, y + 4);
+  doc.text('PENAMBAHBAIKAN:', margin + halfW + 6, y + 4);
+  y += 5.8;
 
-  doc.rect(margin, y, halfW, 18);
-  doc.rect(margin + halfW + 3, y, halfW, 18);
+  doc.setDrawColor(203, 213, 225);
+  doc.rect(margin, y, halfW, twoColBoxH);
+  doc.rect(margin + halfW + 3, y, halfW, twoColBoxH);
   doc.setTextColor(30, 41, 59);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.text(doc.splitTextToSize(opr.kekuatan, halfW - 6).slice(0, 3), margin + 3, y + 4.8);
-  doc.text(doc.splitTextToSize(opr.penambahbaikan, halfW - 6).slice(0, 3), margin + halfW + 6, y + 4.8);
-  y += 21;
+  doc.setFontSize(7.3);
+
+  let ky = y + 4.2;
+  wrappedKekuatan.forEach((lines) => {
+    doc.text(lines, margin + 3, ky);
+    ky += lines.length * colLineH;
+  });
+
+  let py = y + 4.2;
+  wrappedPenambahbaikan.forEach((lines) => {
+    doc.text(lines, margin + halfW + 6, py);
+    py += lines.length * colLineH;
+  });
+
+  y += twoColBoxH + 3;
 
   // LAPORAN BERGAMBAR (2x2 GRID)
+  const imgBoxW = (contentWidth - 4) / 2;
+  const imgBoxH = 42;
+  const totalPhotosHeight = 6 + imgBoxH * 2 + 6;
+
+  if (y + totalPhotosHeight > 280) {
+    doc.addPage();
+    y = 15;
+  }
+
   doc.setFillColor(15, 23, 42);
-  doc.rect(margin, y, contentWidth, 6, 'F');
+  doc.rect(margin, y, contentWidth, 5.8, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('DOKUMENTASI BERGAMBAR AKTIVITI PERKHEMAHAN SK LUPAK 2026', margin + 3, y + 4.2);
-  y += 8;
-
-  const imgBoxW = (contentWidth - 4) / 2;
-  const imgBoxH = 44;
+  doc.setFontSize(7.8);
+  doc.text('DOKUMENTASI BERGAMBAR AKTIVITI PERKHEMAHAN SK LUPAK 2026', margin + 3, y + 4);
+  y += 7.5;
 
   for (let i = 0; i < Math.min(4, opr.photos.length); i++) {
     const col = i % 2;
     const row = Math.floor(i / 2);
     const bx = margin + col * (imgBoxW + 4);
-    const by = y + row * (imgBoxH + 3);
+    const by = y + row * (imgBoxH + 2.5);
     const photo = opr.photos[i];
 
     doc.setDrawColor(203, 213, 225);
@@ -458,24 +527,29 @@ export async function exportOPRPDF(state: CampAppState): Promise<void> {
 
     const jpegUrl = await dataUrlToPngDataUrl(photo.dataUrl, 640, 340);
     if (jpegUrl) {
-      doc.addImage(jpegUrl, 'JPEG', bx + 1.5, by + 1.5, imgBoxW - 3, 33);
+      doc.addImage(jpegUrl, 'JPEG', bx + 1.5, by + 1.5, imgBoxW - 3, 31);
     }
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.8);
+    doc.setFontSize(6.6);
     doc.setTextColor(6, 78, 59);
-    doc.text(photo.tag, bx + 2.5, by + 38);
+    doc.text(photo.tag, bx + 2.5, by + 36);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.8);
+    doc.setFontSize(6.6);
     doc.setTextColor(30, 41, 59);
-    doc.text(doc.splitTextToSize(photo.caption, imgBoxW - 5)[0] || '', bx + 2.5, by + 42);
+    doc.text(doc.splitTextToSize(photo.caption, imgBoxW - 5)[0] || '', bx + 2.5, by + 40);
   }
 
-  y += imgBoxH * 2 + 12;
+  y += imgBoxH * 2 + 6;
 
   // PENGESAHAN SIGNATURES
-  const sigY = Math.max(y + 10, 275);
+  if (y + 18 > 287) {
+    doc.addPage();
+    y = 22;
+  }
+
+  const sigY = Math.max(y + 8, 275);
   doc.setDrawColor(148, 163, 184);
   doc.line(margin, sigY, margin + 54, sigY);
   doc.line(margin + 67, sigY, margin + 121, sigY);

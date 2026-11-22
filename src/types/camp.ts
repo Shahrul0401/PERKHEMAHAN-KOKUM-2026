@@ -102,8 +102,11 @@ export interface OPRReportData {
   kehadiran: string;
   objektif: string[];
   ringkasanAktiviti: string;
+  ringkasanList?: string[];
   kekuatan: string;
+  kekuatanList?: string[];
   penambahbaikan: string;
+  penambahbaikanList?: string[];
   disediakanOleh: string;
   jawatanPenyedia: string;
   disemakOleh: string;

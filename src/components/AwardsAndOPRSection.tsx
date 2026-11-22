@@ -6,20 +6,30 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  Lock,
+  Plus,
   Sparkles,
+  Trash2,
   Trophy,
 } from 'lucide-react';
 import { AwardItem, CampAppState, OPRReportData } from '../types/camp';
 import { exportKeputusanPDF, exportOPRPDF } from '../utils/pdfExporter';
+import { AdminAccessBanner } from './AdminPasswordModal';
 
 interface AwardsAndOPRSectionProps {
   state: CampAppState;
+  isEditUnlocked: boolean;
+  onRequestUnlock: () => void;
+  onLockAgain: () => void;
   onUpdateAwards: (awards: AwardItem[], desc: string) => void;
   onUpdateOPR: (opr: OPRReportData, desc: string) => void;
 }
 
 export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
   state,
+  isEditUnlocked,
+  onRequestUnlock,
+  onLockAgain,
   onUpdateAwards,
   onUpdateOPR,
 }) => {
@@ -35,6 +45,10 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
 
   // Auto-calculate winners from live scores
   const handleAutoSyncWinners = () => {
+    if (!isEditUnlocked) {
+      onRequestUnlock();
+      return;
+    }
     // 1. Top Explorace Group
     const expRanked = [...state.groups]
       .map((g) => ({
@@ -95,6 +109,10 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
   };
 
   const handleWinnerChange = (id: string, newWinner: string) => {
+    if (!isEditUnlocked) {
+      onRequestUnlock();
+      return;
+    }
     const next = state.awards.map((a) =>
       a.id === id ? { ...a, winner: newWinner } : a
     );
@@ -103,6 +121,10 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
   };
 
   const handleTitleChange = (id: string, newTitle: string) => {
+    if (!isEditUnlocked) {
+      onRequestUnlock();
+      return;
+    }
     const next = state.awards.map((a) =>
       a.id === id ? { ...a, title: newTitle } : a
     );
@@ -130,6 +152,10 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
   };
 
   const handlePhotoUpload = (photoId: string, file: File | undefined) => {
+    if (!isEditUnlocked) {
+      onRequestUnlock();
+      return;
+    }
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
@@ -150,6 +176,110 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
   const umumAwards = state.awards.filter((a) => a.category === 'UMUM');
   const kawadAwards = state.awards.filter((a) => a.category === 'KAWAD');
   const kadetAwards = state.awards.filter((a) => a.category === 'KADET');
+
+  // Live Kawad Kaki rankings directly from Carta Pertandingan Kawad Kaki Asas
+  const kawadMetrics = [...state.uniformUnits]
+    .map((u) => {
+      const sc = state.kawadScores[u.id] || { arahan: 0, keseragaman: 0, nadaSuara: 0 };
+      const total = sc.arahan + sc.keseragaman + sc.nadaSuara;
+      return { unit: u, sc, total };
+    })
+    .sort((a, b) => b.total - a.total);
+
+  const getUnitLogoAndTheme = (unitName: string) => {
+    const upper = unitName.toUpperCase();
+    if (upper.includes('PENGAKAP')) {
+      return {
+        logo: '/assets/aistudio/PERSEKUTUAN_PENGAKAP_MALAYSIA_21372bf0.png',
+        cardClass: 'bg-[#3b669c]/45 border-sky-300/35',
+        barClass: 'from-sky-400 to-blue-600',
+      };
+    }
+    if (upper.includes('PUTERI')) {
+      return {
+        logo: '/assets/aistudio/PERGERAKAN_PUTERI_ISLAM_MALAYSIA_3e27523c.png',
+        cardClass: 'bg-pink-500/30 border-pink-400/55',
+        barClass: 'from-pink-400 to-rose-500',
+      };
+    }
+    return {
+      logo: '/assets/aistudio/KADET_REMAJA_SEKOLAH_872fa552.png',
+      cardClass: 'bg-[#277971]/50 border-emerald-300/35',
+      barClass: 'from-emerald-400 to-teal-500',
+    };
+  };
+
+  // Resolve structured numbered array for OPR sections
+  const objektifItems: string[] =
+    Array.isArray(state.oprData.objektif) && state.oprData.objektif.length > 0
+      ? state.oprData.objektif
+      : [''];
+
+  const ringkasanItems: string[] =
+    Array.isArray(state.oprData.ringkasanList) && state.oprData.ringkasanList.length > 0
+      ? state.oprData.ringkasanList
+      : (state.oprData.ringkasanAktiviti || '')
+          .split('\n')
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+  const kekuatanItems: string[] =
+    Array.isArray(state.oprData.kekuatanList) && state.oprData.kekuatanList.length > 0
+      ? state.oprData.kekuatanList
+      : (state.oprData.kekuatan || '')
+          .split('\n')
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+  const penambahbaikanItems: string[] =
+    Array.isArray(state.oprData.penambahbaikanList) &&
+    state.oprData.penambahbaikanList.length > 0
+      ? state.oprData.penambahbaikanList
+      : (state.oprData.penambahbaikan || '')
+          .split('\n')
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+  const updateOprListSection = (
+    section: 'objektif' | 'ringkasan' | 'kekuatan' | 'penambahbaikan',
+    nextItems: string[],
+    actionDesc: string
+  ) => {
+    if (!isEditUnlocked) {
+      onRequestUnlock();
+      return;
+    }
+    if (section === 'objektif') {
+      onUpdateOPR({ ...state.oprData, objektif: nextItems }, actionDesc);
+    } else if (section === 'ringkasan') {
+      onUpdateOPR(
+        {
+          ...state.oprData,
+          ringkasanList: nextItems,
+          ringkasanAktiviti: nextItems.join('\n'),
+        },
+        actionDesc
+      );
+    } else if (section === 'kekuatan') {
+      onUpdateOPR(
+        {
+          ...state.oprData,
+          kekuatanList: nextItems,
+          kekuatan: nextItems.join('\n'),
+        },
+        actionDesc
+      );
+    } else {
+      onUpdateOPR(
+        {
+          ...state.oprData,
+          penambahbaikanList: nextItems,
+          penambahbaikan: nextItems.join('\n'),
+        },
+        actionDesc
+      );
+    }
+  };
 
   return (
     <div className="space-y-4 sm:space-y-6">
@@ -225,6 +355,14 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
         </div>
       </div>
 
+      {/* Password / View-Only Status Banner */}
+      <AdminAccessBanner
+        isUnlocked={isEditUnlocked}
+        sectionName="Komponen Anugerah & Pelaporan (OPR)"
+        onRequestUnlock={onRequestUnlock}
+        onLockAgain={onLockAgain}
+      />
+
       {toastMsg && (
         <div className="p-3 sm:p-3.5 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-[11px] sm:text-xs font-semibold flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -288,28 +426,46 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
 
                     <div className="w-full sm:w-64 shrink-0 flex items-center gap-1.5">
                       {aw.order <= 7 ? (
-                        <select
-                          value={
-                            state.groups.some((g) => aw.winner.startsWith(g.name))
-                              ? state.groups.find((g) => aw.winner.startsWith(g.name))!.name
-                              : aw.winner
-                          }
-                          onChange={(e) => handleWinnerChange(aw.id, e.target.value)}
-                          className="w-full min-h-[40px] px-3 py-1.5 rounded-xl glass-input text-xs font-bold text-emerald-300 cursor-pointer"
-                        >
-                          {state.groups.map((g) => (
-                            <option key={g.id} value={g.name} className="bg-slate-900 text-white">
-                              {g.name}
-                            </option>
-                          ))}
-                        </select>
+                        isEditUnlocked ? (
+                          <select
+                            value={
+                              state.groups.some((g) => aw.winner.startsWith(g.name))
+                                ? state.groups.find((g) => aw.winner.startsWith(g.name))!.name
+                                : aw.winner
+                            }
+                            onChange={(e) => handleWinnerChange(aw.id, e.target.value)}
+                            className="w-full min-h-[40px] px-3 py-1.5 rounded-xl glass-input text-xs font-bold text-emerald-300 cursor-pointer"
+                          >
+                            {state.groups.map((g) => (
+                              <option key={g.id} value={g.name} className="bg-slate-900 text-white">
+                                {g.name}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={onRequestUnlock}
+                            className="w-full min-h-[40px] px-3 py-1.5 rounded-xl glass-input text-xs font-bold text-emerald-300 flex items-center justify-between gap-2 cursor-pointer text-left"
+                            title="Klik untuk masukkan password kemaskini"
+                          >
+                            <span className="truncate">{aw.winner}</span>
+                            <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                          </button>
+                        )
                       ) : (
                         <input
                           type="text"
                           value={aw.winner}
+                          readOnly={!isEditUnlocked}
+                          onClick={() => {
+                            if (!isEditUnlocked) onRequestUnlock();
+                          }}
                           onChange={(e) => handleWinnerChange(aw.id, e.target.value)}
                           placeholder="Nama Komandan Terbaik"
-                          className="w-full min-h-[40px] px-3 py-1.5 rounded-xl glass-input text-xs font-bold text-amber-300"
+                          className={`w-full min-h-[40px] px-3 py-1.5 rounded-xl glass-input text-xs font-bold text-amber-300 ${
+                            !isEditUnlocked ? 'cursor-pointer opacity-85' : ''
+                          }`}
                         />
                       )}
                     </div>
@@ -320,38 +476,65 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
 
             {/* KATEGORI KAWAD KAKI TERBAIK & 6 KADET TERBAIK */}
             <div className="lg:col-span-5 space-y-6">
-              {/* KATEGORI KAWAD KAKI TERBAIK */}
+              {/* KATEGORI KAWAD KAKI TERBAIK (SYNCED LIVE FROM CARTA PERTANDINGAN KAWAD KAKI ASAS) */}
               <div className="glass-panel rounded-3xl p-5 sm:p-6">
-                <h3 className="font-display font-bold text-lg text-white pb-3.5 border-b border-white/10 flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-amber-400" />
-                  <span>KATEGORI KAWAD KAKI TERBAIK</span>
-                </h3>
+                <div className="pb-3.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="font-display font-bold text-lg text-white flex items-center gap-2">
+                      <Trophy className="w-5 h-5 text-amber-400 shrink-0" />
+                      <span>KATEGORI KAWAD KAKI TERBAIK</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-300 mt-0.5">
+                      Disegerakkan secara automatik daripada Carta Pertandingan Kawad Kaki Asas.
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-[10px] font-bold text-emerald-300">
+                    Auto-Carta Markah
+                  </span>
+                </div>
                 <div className="mt-4 space-y-3">
-                  {kawadAwards.map((aw) => (
-                    <div
-                      key={aw.id}
-                      className="p-3.5 rounded-2xl bg-slate-950/60 border border-white/10 space-y-2"
-                    >
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-mono font-bold text-amber-300">
-                          #{aw.order} · {aw.title}
-                        </span>
-                        <span className="text-slate-400">Unit Uniform</span>
+                  {kawadAwards.map((aw, idx) => {
+                    const rankedItem = kawadMetrics[idx];
+                    const unitName = rankedItem ? rankedItem.unit.name : aw.winner;
+                    const theme = getUnitLogoAndTheme(unitName);
+                    return (
+                      <div
+                        key={aw.id}
+                        className={`p-3.5 rounded-2xl border space-y-2 ${theme.cardClass}`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <img
+                              src={theme.logo}
+                              alt={unitName}
+                              referrerPolicy="no-referrer"
+                              className="w-9 h-9 object-contain shrink-0 drop-shadow"
+                            />
+                            <div className="min-w-0">
+                              <span className="font-mono font-bold text-[11px] text-amber-300 block">
+                                #{aw.order} · {aw.title}
+                              </span>
+                              <p className="font-display font-bold text-sm sm:text-base text-white leading-tight">
+                                {unitName}
+                              </p>
+                            </div>
+                          </div>
+                          {rankedItem && (
+                            <span className="font-mono font-extrabold text-base sm:text-lg text-amber-300 tabular-nums shrink-0">
+                              {rankedItem.total}%
+                            </span>
+                          )}
+                        </div>
+                        {rankedItem && (
+                          <div className="pt-1.5 border-t border-white/15 flex flex-wrap items-center justify-between gap-1 text-[10px] sm:text-[11px] font-mono text-slate-200 tabular-nums">
+                            <span>Arahan: {rankedItem.sc.arahan}/40</span>
+                            <span>Keseragaman: {rankedItem.sc.keseragaman}/30</span>
+                            <span>Suara: {rankedItem.sc.nadaSuara}/30</span>
+                          </div>
+                        )}
                       </div>
-                      <input
-                        type="text"
-                        value={aw.winner}
-                        onChange={(e) => handleWinnerChange(aw.id, e.target.value)}
-                        list="uniform-units-list"
-                        className="w-full min-h-[40px] px-3 py-1.5 rounded-xl glass-input text-xs font-bold text-white"
-                      />
-                    </div>
-                  ))}
-                  <datalist id="uniform-units-list">
-                    <option value="TUNAS KADET REMAJA SEKOLAH" />
-                    <option value="PENGAKAP" />
-                    <option value="PERGERAKAN PUTERI ISLAM MALAYSIA" />
-                  </datalist>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -378,19 +561,31 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
                         <input
                           type="text"
                           value={aw.title}
+                          readOnly={!isEditUnlocked}
+                          onClick={() => {
+                            if (!isEditUnlocked) onRequestUnlock();
+                          }}
                           onChange={(e) => handleTitleChange(aw.id, e.target.value)}
                           placeholder="Nama Kategori Anugerah (cth: Kadet Terbaik TKRS - Putera)"
                           aria-label={`Nama Anugerah Kadet ${aw.order}`}
-                          className="w-full min-h-[36px] px-3 py-1 rounded-xl glass-input text-xs font-bold text-amber-300"
+                          className={`w-full min-h-[36px] px-3 py-1 rounded-xl glass-input text-xs font-bold text-amber-300 ${
+                            !isEditUnlocked ? 'cursor-pointer opacity-85' : ''
+                          }`}
                         />
                       </div>
                       <input
                         type="text"
                         value={aw.winner}
+                        readOnly={!isEditUnlocked}
+                        onClick={() => {
+                          if (!isEditUnlocked) onRequestUnlock();
+                        }}
                         onChange={(e) => handleWinnerChange(aw.id, e.target.value)}
                         placeholder="Nama Penerima / Pemenang"
                         aria-label={`Pemenang Anugerah Kadet ${aw.order}`}
-                        className="w-full min-h-[38px] px-3 py-1.5 rounded-xl glass-input text-xs text-emerald-200 font-medium"
+                        className={`w-full min-h-[38px] px-3 py-1.5 rounded-xl glass-input text-xs text-emerald-200 font-medium ${
+                          !isEditUnlocked ? 'cursor-pointer opacity-85' : ''
+                        }`}
                       />
                     </div>
                   ))}
@@ -404,119 +599,464 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
       {/* VIEW 2: ONE PAGE REPORT (OPR) STUDIO & LIVE PREVIEW */}
       {subView === 'OPR' && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Column: Interactive Form to Customize OPR Content & Upload Photos */}
-          <div className="lg:col-span-5 glass-panel rounded-3xl p-5 sm:p-6 space-y-4">
+          {/* Left Column: Interactive Form to Customize ALL OPR Content & Upload Photos */}
+          <div className="lg:col-span-5 glass-panel rounded-3xl p-4 sm:p-6 space-y-4">
             <div className="pb-3 border-b border-white/10">
-              <h3 className="font-display font-bold text-lg text-white">
-                 Kemaskini Kandungan One Page Report (OPR)
-              </h3>
-              <p className="text-xs text-slate-300">
-                Sunting maklumat laporan atau muat naik gambar aktiviti sebenar sebelum eksport ke PDF.
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="font-display font-bold text-base sm:text-lg text-white">
+                  Kemaskini Kandungan One Page Report (OPR)
+                </h3>
+                {!isEditUnlocked && (
+                  <span className="px-2 py-0.5 rounded-lg bg-amber-500/20 border border-amber-400/40 text-[10px] font-bold text-amber-300 flex items-center gap-1 shrink-0">
+                    <Lock className="w-3 h-3" />
+                    <span>View Only</span>
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-300 mt-0.5">
+                {isEditUnlocked ? (
+                  <>
+                    Sunting semua maklumat laporan, tambah item bernombor (1, 2, 3...) dengan butang <strong>+</strong>, atau muat naik gambar aktiviti.
+                  </>
+                ) : (
+                  'Klik pada mana-mana ruangan di bawah untuk memasukkan password bagi mengemaskini laporan OPR.'
+                )}
               </p>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Nama Program
-                </label>
-                <input
-                  type="text"
-                  value={state.oprData.namaProgram}
-                  onChange={(e) =>
-                    onUpdateOPR(
-                      { ...state.oprData, namaProgram: e.target.value },
-                      'Kemaskini tajuk OPR'
-                    )
-                  }
-                  className="w-full min-h-[40px] px-3 py-2 rounded-xl glass-input text-xs font-semibold"
-                />
-              </div>
+            <div
+              onClickCapture={(e) => {
+                if (!isEditUnlocked) {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onRequestUnlock();
+                }
+              }}
+              onKeyDownCapture={(e) => {
+                if (!isEditUnlocked && e.key !== 'Tab') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onRequestUnlock();
+                }
+              }}
+              className={`space-y-3.5 ${
+                !isEditUnlocked ? 'cursor-pointer select-none opacity-90' : ''
+              }`}
+            >
+              {/* Maklumat Asas Program */}
+              <div className="p-3.5 rounded-2xl bg-slate-950/55 border border-white/10 space-y-3">
+                <p className="text-xs font-bold text-amber-400 uppercase tracking-wider">
+                  Maklumat Asas Program (Boleh Diedit)
+                </p>
 
-              <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Tarikh Pelaksanaan
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    Nama Program
                   </label>
                   <input
                     type="text"
-                    value={state.oprData.tarikh}
+                    value={state.oprData.namaProgram}
                     onChange={(e) =>
                       onUpdateOPR(
-                        { ...state.oprData, tarikh: e.target.value },
-                        'Kemaskini tarikh OPR'
+                        { ...state.oprData, namaProgram: e.target.value },
+                        'Kemaskini Nama Program OPR'
                       )
                     }
-                    className="w-full min-h-[40px] px-3 py-2 rounded-xl glass-input text-xs"
+                    className="w-full min-h-[38px] px-3 py-1.5 rounded-xl glass-input text-xs font-semibold"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Kehadiran Peserta
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    Anjuran
                   </label>
                   <input
                     type="text"
-                    value={state.oprData.kehadiran}
+                    value={state.oprData.anjuran}
                     onChange={(e) =>
                       onUpdateOPR(
-                        { ...state.oprData, kehadiran: e.target.value },
-                        'Kemaskini kehadiran OPR'
+                        { ...state.oprData, anjuran: e.target.value },
+                        'Kemaskini Anjuran OPR'
                       )
                     }
-                    className="w-full min-h-[40px] px-3 py-2 rounded-xl glass-input text-xs"
+                    className="w-full min-h-[38px] px-3 py-1.5 rounded-xl glass-input text-xs"
                   />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Tarikh Pelaksanaan
+                    </label>
+                    <input
+                      type="text"
+                      value={state.oprData.tarikh}
+                      onChange={(e) =>
+                        onUpdateOPR(
+                          { ...state.oprData, tarikh: e.target.value },
+                          'Kemaskini Tarikh OPR'
+                        )
+                      }
+                      className="w-full min-h-[38px] px-3 py-1.5 rounded-xl glass-input text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Masa Pelaksanaan
+                    </label>
+                    <input
+                      type="text"
+                      value={state.oprData.masa}
+                      onChange={(e) =>
+                        onUpdateOPR(
+                          { ...state.oprData, masa: e.target.value },
+                          'Kemaskini Masa OPR'
+                        )
+                      }
+                      className="w-full min-h-[38px] px-3 py-1.5 rounded-xl glass-input text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                    Tempat
+                  </label>
+                  <input
+                    type="text"
+                    value={state.oprData.tempat}
+                    onChange={(e) =>
+                      onUpdateOPR(
+                        { ...state.oprData, tempat: e.target.value },
+                        'Kemaskini Tempat OPR'
+                      )
+                    }
+                    className="w-full min-h-[38px] px-3 py-1.5 rounded-xl glass-input text-xs"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Sasaran Peserta
+                    </label>
+                    <input
+                      type="text"
+                      value={state.oprData.sasaran}
+                      onChange={(e) =>
+                        onUpdateOPR(
+                          { ...state.oprData, sasaran: e.target.value },
+                          'Kemaskini Sasaran OPR'
+                        )
+                      }
+                      className="w-full min-h-[38px] px-3 py-1.5 rounded-xl glass-input text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                      Kehadiran Peserta
+                    </label>
+                    <input
+                      type="text"
+                      value={state.oprData.kehadiran}
+                      onChange={(e) =>
+                        onUpdateOPR(
+                          { ...state.oprData, kehadiran: e.target.value },
+                          'Kemaskini Kehadiran OPR'
+                        )
+                      }
+                      className="w-full min-h-[38px] px-3 py-1.5 rounded-xl glass-input text-xs"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Ringkasan Pelaksanaan Aktiviti
-                </label>
-                <textarea
-                  rows={3}
-                  value={state.oprData.ringkasanAktiviti}
-                  onChange={(e) =>
-                    onUpdateOPR(
-                      { ...state.oprData, ringkasanAktiviti: e.target.value },
-                      'Kemaskini ringkasan aktiviti OPR'
-                    )
-                  }
-                  className="w-full px-3 py-2 rounded-xl glass-input text-xs leading-relaxed"
-                />
+              {/* 1. OBJEKTIF PROGRAM (Numbered items 1, 2, 3... with + button) */}
+              <div className="p-3.5 rounded-2xl bg-slate-950/55 border border-white/10 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-bold text-emerald-300 uppercase tracking-wider">
+                      Objektif Program
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      Senarai bernombor ({objektifItems.length} item)
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateOprListSection(
+                        'objektif',
+                        [...objektifItems, ''],
+                        `Tambah Objektif Program #${objektifItems.length + 1}`
+                      )
+                    }
+                    className="min-h-[32px] px-2.5 py-1 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/35 border border-emerald-400/40 text-emerald-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
+                    title="Tambah Objektif Baru"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah No. {objektifItems.length + 1}</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {objektifItems.map((item, idx) => (
+                    <div key={`obj-${idx}`} className="flex items-start gap-2">
+                      <span className="w-6 h-6 rounded-lg bg-emerald-500/20 border border-emerald-400/35 font-mono font-bold text-[11px] text-emerald-300 flex items-center justify-center shrink-0 mt-1.5 tabular-nums">
+                        {idx + 1}
+                      </span>
+                      <textarea
+                        rows={2}
+                        value={item}
+                        onChange={(e) => {
+                          const next = [...objektifItems];
+                          next[idx] = e.target.value;
+                          updateOprListSection(
+                            'objektif',
+                            next,
+                            `Kemaskini Objektif Program #${idx + 1}`
+                          );
+                        }}
+                        placeholder={`Masukkan objektif program ke-${idx + 1}...`}
+                        className="flex-1 px-3 py-1.5 rounded-xl glass-input text-xs leading-relaxed"
+                      />
+                      {objektifItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = objektifItems.filter((_, i) => i !== idx);
+                            updateOprListSection(
+                              'objektif',
+                              next,
+                              `Padam Objektif Program #${idx + 1}`
+                            );
+                          }}
+                          className="w-7 h-7 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-400/30 text-rose-300 flex items-center justify-center shrink-0 mt-1.5 cursor-pointer transition-colors"
+                          title={`Padam Objektif #${idx + 1}`}
+                          aria-label={`Padam Objektif #${idx + 1}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Kekuatan / Impak Program
-                </label>
-                <textarea
-                  rows={2}
-                  value={state.oprData.kekuatan}
-                  onChange={(e) =>
-                    onUpdateOPR(
-                      { ...state.oprData, kekuatan: e.target.value },
-                      'Kemaskini kekuatan OPR'
-                    )
-                  }
-                  className="w-full px-3 py-2 rounded-xl glass-input text-xs leading-relaxed"
-                />
+              {/* 2. RINGKASAN AKTIVITI & KEPUTUSAN RASMI (Numbered items 1, 2, 3... with + button) */}
+              <div className="p-3.5 rounded-2xl bg-slate-950/55 border border-white/10 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-bold text-sky-300 uppercase tracking-wider">
+                      Ringkasan Aktiviti &amp; Keputusan Rasmi
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      Senarai bernombor ({ringkasanItems.length} item)
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateOprListSection(
+                        'ringkasan',
+                        [...ringkasanItems, ''],
+                        `Tambah Ringkasan Aktiviti #${ringkasanItems.length + 1}`
+                      )
+                    }
+                    className="min-h-[32px] px-2.5 py-1 rounded-xl bg-sky-500/20 hover:bg-sky-500/35 border border-sky-400/40 text-sky-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
+                    title="Tambah Ringkasan Aktiviti Baru"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah No. {ringkasanItems.length + 1}</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {ringkasanItems.map((item, idx) => (
+                    <div key={`ringkasan-${idx}`} className="flex items-start gap-2">
+                      <span className="w-6 h-6 rounded-lg bg-sky-500/20 border border-sky-400/35 font-mono font-bold text-[11px] text-sky-300 flex items-center justify-center shrink-0 mt-1.5 tabular-nums">
+                        {idx + 1}
+                      </span>
+                      <textarea
+                        rows={2}
+                        value={item}
+                        onChange={(e) => {
+                          const next = [...ringkasanItems];
+                          next[idx] = e.target.value;
+                          updateOprListSection(
+                            'ringkasan',
+                            next,
+                            `Kemaskini Ringkasan Aktiviti #${idx + 1}`
+                          );
+                        }}
+                        placeholder={`Masukkan ringkasan aktiviti / keputusan ke-${idx + 1}...`}
+                        className="flex-1 px-3 py-1.5 rounded-xl glass-input text-xs leading-relaxed"
+                      />
+                      {ringkasanItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = ringkasanItems.filter((_, i) => i !== idx);
+                            updateOprListSection(
+                              'ringkasan',
+                              next,
+                              `Padam Ringkasan Aktiviti #${idx + 1}`
+                            );
+                          }}
+                          className="w-7 h-7 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-400/30 text-rose-300 flex items-center justify-center shrink-0 mt-1.5 cursor-pointer transition-colors"
+                          title={`Padam Ringkasan #${idx + 1}`}
+                          aria-label={`Padam Ringkasan #${idx + 1}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
-                  Cadangan Penambahbaikan
-                </label>
-                <textarea
-                  rows={2}
-                  value={state.oprData.penambahbaikan}
-                  onChange={(e) =>
-                    onUpdateOPR(
-                      { ...state.oprData, penambahbaikan: e.target.value },
-                      'Kemaskini penambahbaikan OPR'
-                    )
-                  }
-                  className="w-full px-3 py-2 rounded-xl glass-input text-xs leading-relaxed"
-                />
+              {/* 3. KEKUATAN / IMPAK PROGRAM (Numbered items 1, 2, 3... with + button) */}
+              <div className="p-3.5 rounded-2xl bg-slate-950/55 border border-white/10 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-bold text-amber-300 uppercase tracking-wider">
+                      Kekuatan / Impak
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      Senarai bernombor ({kekuatanItems.length} item)
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateOprListSection(
+                        'kekuatan',
+                        [...kekuatanItems, ''],
+                        `Tambah Kekuatan / Impak #${kekuatanItems.length + 1}`
+                      )
+                    }
+                    className="min-h-[32px] px-2.5 py-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/40 text-amber-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
+                    title="Tambah Kekuatan / Impak Baru"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah No. {kekuatanItems.length + 1}</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {kekuatanItems.map((item, idx) => (
+                    <div key={`kekuatan-${idx}`} className="flex items-start gap-2">
+                      <span className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-400/35 font-mono font-bold text-[11px] text-amber-300 flex items-center justify-center shrink-0 mt-1.5 tabular-nums">
+                        {idx + 1}
+                      </span>
+                      <textarea
+                        rows={2}
+                        value={item}
+                        onChange={(e) => {
+                          const next = [...kekuatanItems];
+                          next[idx] = e.target.value;
+                          updateOprListSection(
+                            'kekuatan',
+                            next,
+                            `Kemaskini Kekuatan / Impak #${idx + 1}`
+                          );
+                        }}
+                        placeholder={`Masukkan kekuatan / impak program ke-${idx + 1}...`}
+                        className="flex-1 px-3 py-1.5 rounded-xl glass-input text-xs leading-relaxed"
+                      />
+                      {kekuatanItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = kekuatanItems.filter((_, i) => i !== idx);
+                            updateOprListSection(
+                              'kekuatan',
+                              next,
+                              `Padam Kekuatan / Impak #${idx + 1}`
+                            );
+                          }}
+                          className="w-7 h-7 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-400/30 text-rose-300 flex items-center justify-center shrink-0 mt-1.5 cursor-pointer transition-colors"
+                          title={`Padam Kekuatan #${idx + 1}`}
+                          aria-label={`Padam Kekuatan #${idx + 1}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 4. PENAMBAHBAIKAN (Numbered items 1, 2, 3... with + button) */}
+              <div className="p-3.5 rounded-2xl bg-slate-950/55 border border-white/10 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs font-bold text-purple-300 uppercase tracking-wider">
+                      Penambahbaikan
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      Senarai bernombor ({penambahbaikanItems.length} item)
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateOprListSection(
+                        'penambahbaikan',
+                        [...penambahbaikanItems, ''],
+                        `Tambah Penambahbaikan #${penambahbaikanItems.length + 1}`
+                      )
+                    }
+                    className="min-h-[32px] px-2.5 py-1 rounded-xl bg-purple-500/20 hover:bg-purple-500/35 border border-purple-400/40 text-purple-200 text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0 transition-colors"
+                    title="Tambah Cadangan Penambahbaikan Baru"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Tambah No. {penambahbaikanItems.length + 1}</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {penambahbaikanItems.map((item, idx) => (
+                    <div key={`penambahbaikan-${idx}`} className="flex items-start gap-2">
+                      <span className="w-6 h-6 rounded-lg bg-purple-500/20 border border-purple-400/35 font-mono font-bold text-[11px] text-purple-300 flex items-center justify-center shrink-0 mt-1.5 tabular-nums">
+                        {idx + 1}
+                      </span>
+                      <textarea
+                        rows={2}
+                        value={item}
+                        onChange={(e) => {
+                          const next = [...penambahbaikanItems];
+                          next[idx] = e.target.value;
+                          updateOprListSection(
+                            'penambahbaikan',
+                            next,
+                            `Kemaskini Penambahbaikan #${idx + 1}`
+                          );
+                        }}
+                        placeholder={`Masukkan cadangan penambahbaikan ke-${idx + 1}...`}
+                        className="flex-1 px-3 py-1.5 rounded-xl glass-input text-xs leading-relaxed"
+                      />
+                      {penambahbaikanItems.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = penambahbaikanItems.filter((_, i) => i !== idx);
+                            updateOprListSection(
+                              'penambahbaikan',
+                              next,
+                              `Padam Penambahbaikan #${idx + 1}`
+                            );
+                          }}
+                          className="w-7 h-7 rounded-lg bg-rose-500/15 hover:bg-rose-500/30 border border-rose-400/30 text-rose-300 flex items-center justify-center shrink-0 mt-1.5 cursor-pointer transition-colors"
+                          title={`Padam Penambahbaikan #${idx + 1}`}
+                          aria-label={`Padam Penambahbaikan #${idx + 1}`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Editable Signatories Section (Disediakan, Disemak, Disahkan & Jawatan) */}
@@ -659,7 +1199,7 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
               <div className="pt-2 border-t border-white/10">
                 <p className="text-xs font-bold text-emerald-300 mb-2.5 flex items-center gap-1.5">
                   <Camera className="w-4 h-4" />
-                  <span>Muat Naik 4 Gambar Dokumentasi (Telefon / Dron):</span>
+                  <span>Muat Naik &amp; Edit 4 Gambar Dokumentasi (Telefon / Dron):</span>
                 </p>
                 <div className="space-y-2.5">
                   {state.oprData.photos.map((ph, idx) => (
@@ -668,10 +1208,27 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
                       className="p-2.5 rounded-xl bg-slate-950/60 border border-white/10 space-y-1.5"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-mono font-bold text-amber-300">
-                          Gambar #{idx + 1}: {ph.tag}
-                        </span>
-                        <label className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 text-[11px] font-semibold text-emerald-200 cursor-pointer">
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                          <span className="text-[11px] font-mono font-bold text-amber-300 shrink-0">
+                            #{idx + 1}
+                          </span>
+                          <input
+                            type="text"
+                            value={ph.tag}
+                            onChange={(e) => {
+                              const nextPhotos = state.oprData.photos.map((item) =>
+                                item.id === ph.id ? { ...item, tag: e.target.value } : item
+                              );
+                              onUpdateOPR(
+                                { ...state.oprData, photos: nextPhotos },
+                                `Kemaskini label/hari gambar OPR #${idx + 1}`
+                              );
+                            }}
+                            placeholder="Label Hari / LDK"
+                            className="w-full min-h-[30px] px-2 py-0.5 rounded-lg glass-input text-[11px] font-bold text-amber-200"
+                          />
+                        </div>
+                        <label className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-400/30 text-[11px] font-semibold text-emerald-200 cursor-pointer shrink-0">
                           Pilih Gambar
                           <input
                             type="file"
@@ -693,27 +1250,28 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
                             `Kemaskini kapsyen gambar OPR #${idx + 1}`
                           );
                         }}
+                        placeholder="Kapsyen gambar aktiviti..."
                         className="w-full min-h-[34px] px-2.5 py-1 rounded-lg glass-input text-[11px]"
                       />
                     </div>
                   ))}
                 </div>
               </div>
-
-              <button
-                type="button"
-                disabled={isExportingOPR}
-                onClick={handleDownloadOPRPDF}
-                className="w-full min-h-[44px] sm:min-h-[46px] px-3 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-display font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer text-center"
-              >
-                <Download className="w-4 h-4 shrink-0" />
-                <span>
-                  {isExportingOPR
-                    ? 'Sedang Menjana Fail PDF OPR...'
-                    : 'Muat Turun Laporan OPR (PDF)'}
-                </span>
-              </button>
             </div>
+
+            <button
+              type="button"
+              disabled={isExportingOPR}
+              onClick={handleDownloadOPRPDF}
+              className="w-full min-h-[44px] sm:min-h-[46px] px-3 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-display font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg cursor-pointer text-center"
+            >
+              <Download className="w-4 h-4 shrink-0" />
+              <span>
+                {isExportingOPR
+                  ? 'Sedang Menjana Fail PDF OPR...'
+                  : 'Muat Turun Laporan OPR (PDF)'}
+              </span>
+            </button>
           </div>
 
           {/* Right Column: Live Visual A4 Preview of the One Page Report (OPR) */}
@@ -724,7 +1282,7 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
                   Pratonton Rasmi One Page Report (OPR) SK Lupak 2026
                 </h3>
                 <p className="text-[11px] sm:text-xs text-slate-400">
-                  Format standard rekod dokumentasi kokurikulum sekolah
+                  Format standard rekod dokumentasi kokurikulum sekolah (Tersusun Mengikut Nombor)
                 </p>
               </div>
               <button
@@ -769,49 +1327,77 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
                   <span className="text-slate-900">{state.oprData.tempat}</span>
                 </div>
                 <div>
-                  <span className="font-bold text-slate-700">Sasaran &amp; Kehadiran:</span>{' '}
+                  <span className="font-bold text-slate-700">Sasaran:</span>{' '}
+                  <span className="text-slate-900">{state.oprData.sasaran}</span>
+                </div>
+                <div className="sm:col-span-2">
+                  <span className="font-bold text-slate-700">Kehadiran Peserta:</span>{' '}
                   <span className="text-slate-900">{state.oprData.kehadiran}</span>
                 </div>
               </div>
 
-              {/* Objectives & Summary */}
-              <div className="space-y-2 text-[11px] sm:text-xs">
+              {/* Objectives & Summary (Both Numbered 1, 2, 3...) */}
+              <div className="space-y-2.5 text-[11px] sm:text-xs">
                 <div className="p-3 rounded-xl border border-slate-200">
-                  <p className="font-bold text-slate-900 uppercase tracking-wide text-[10px] sm:text-[11px] mb-1">
+                  <p className="font-bold text-slate-900 uppercase tracking-wide text-[10px] sm:text-[11px] mb-1.5">
                     Objektif Program:
                   </p>
-                  <ol className="list-decimal list-inside space-y-1 text-slate-700 leading-relaxed">
-                    {state.oprData.objektif.map((obj, i) => (
-                      <li key={i}>{obj}</li>
-                    ))}
+                  <ol className="list-decimal list-outside pl-4 space-y-1 text-slate-700 leading-relaxed">
+                    {objektifItems
+                      .filter((it) => it.trim().length > 0)
+                      .map((obj, i) => (
+                        <li key={i} className="pl-0.5">
+                          {obj}
+                        </li>
+                      ))}
                   </ol>
                 </div>
 
                 <div className="p-3 rounded-xl border border-slate-200 bg-emerald-50/40">
-                  <p className="font-bold text-emerald-950 uppercase tracking-wide text-[10px] sm:text-[11px] mb-1">
+                  <p className="font-bold text-emerald-950 uppercase tracking-wide text-[10px] sm:text-[11px] mb-1.5">
                     Ringkasan Aktiviti &amp; Keputusan Rasmi:
                   </p>
-                  <p className="text-slate-700 leading-relaxed">
-                    {state.oprData.ringkasanAktiviti}
-                  </p>
+                  <ol className="list-decimal list-outside pl-4 space-y-1 text-slate-700 leading-relaxed">
+                    {ringkasanItems
+                      .filter((it) => it.trim().length > 0)
+                      .map((item, i) => (
+                        <li key={i} className="pl-0.5">
+                          {item}
+                        </li>
+                      ))}
+                  </ol>
                 </div>
               </div>
 
-              {/* Strengths & Improvements */}
+              {/* Strengths & Improvements (Both Numbered 1, 2, 3...) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[11px] sm:text-xs">
                 <div className="p-3 rounded-xl border border-slate-200">
-                  <p className="font-bold text-slate-900 text-[10px] sm:text-[11px] uppercase mb-1">
+                  <p className="font-bold text-slate-900 text-[10px] sm:text-[11px] uppercase mb-1.5">
                     Kekuatan / Impak:
                   </p>
-                  <p className="text-slate-700 leading-relaxed">{state.oprData.kekuatan}</p>
+                  <ol className="list-decimal list-outside pl-4 space-y-1 text-slate-700 leading-relaxed">
+                    {kekuatanItems
+                      .filter((it) => it.trim().length > 0)
+                      .map((item, i) => (
+                        <li key={i} className="pl-0.5">
+                          {item}
+                        </li>
+                      ))}
+                  </ol>
                 </div>
                 <div className="p-3 rounded-xl border border-slate-200">
-                  <p className="font-bold text-slate-900 text-[10px] sm:text-[11px] uppercase mb-1">
+                  <p className="font-bold text-slate-900 text-[10px] sm:text-[11px] uppercase mb-1.5">
                     Penambahbaikan:
                   </p>
-                  <p className="text-slate-700 leading-relaxed">
-                    {state.oprData.penambahbaikan}
-                  </p>
+                  <ol className="list-decimal list-outside pl-4 space-y-1 text-slate-700 leading-relaxed">
+                    {penambahbaikanItems
+                      .filter((it) => it.trim().length > 0)
+                      .map((item, i) => (
+                        <li key={i} className="pl-0.5">
+                          {item}
+                        </li>
+                      ))}
+                  </ol>
                 </div>
               </div>
 
