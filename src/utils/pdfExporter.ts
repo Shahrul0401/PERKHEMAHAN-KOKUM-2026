@@ -245,7 +245,35 @@ export async function exportKeputusanPDF(state: CampAppState): Promise<void> {
 
   y = drawAwardsHeader(y);
 
-  const allAwards = [...state.awards];
+  const groupNames = state.groups.map((g) => g.name);
+  const allAwards = state.awards.map((a) => {
+    const isUmum8 =
+      a.id === 'aw-umum-8' ||
+      (a.category === 'UMUM' && a.order === 8) ||
+      a.title.trim().toLowerCase() === 'komandan terbaik';
+    if (isUmum8) {
+      const matchedGroup = groupNames.find((gName) =>
+        (a.winner || '').toUpperCase().startsWith(gName)
+      );
+      return {
+        ...a,
+        title: 'Kumpulan Paling Qanaah',
+        notes: 'Kumpulan paling berwibawa',
+        winner: matchedGroup || 'POLLUX',
+      };
+    }
+    const isKadet6 =
+      a.id === 'aw-kadet-6' ||
+      (a.category === 'KADET' && a.order === 6) ||
+      (a.notes || '').trim() === 'Trofi Khas Kem Komandan & Penilaian';
+    if (isKadet6) {
+      return {
+        ...a,
+        notes: 'Trofi & Sijil Kadet Terbaik',
+      };
+    }
+    return a;
+  });
   const awardRowH = 4.6;
   allAwards.forEach((aw, idx) => {
     if (y + awardRowH > 282) {

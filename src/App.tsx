@@ -189,12 +189,39 @@ function resolveOprList(
 
 function normalizeCampState(raw: CampAppState): CampAppState {
   const kawadScores = raw.kawadScores || INITIAL_CAMP_STATE.kawadScores;
-  const normalizedAwards = (raw.awards || INITIAL_CAMP_STATE.awards).map((a) => ({
-    ...a,
-    title: normalizeUnitTerminology(a.title),
-    winner: normalizeUnitTerminology(a.winner),
-    notes: normalizeUnitTerminology(a.notes),
-  }));
+  const groupNames = INITIAL_CAMP_STATE.groups.map((g) => g.name);
+  const normalizedAwards = (raw.awards || INITIAL_CAMP_STATE.awards).map((a) => {
+    const isUmum8 =
+      a.id === 'aw-umum-8' ||
+      (a.category === 'UMUM' && a.order === 8) ||
+      a.title.trim().toLowerCase() === 'komandan terbaik';
+
+    if (isUmum8) {
+      const matchedGroup = groupNames.find((gName) =>
+        (a.winner || '').toUpperCase().startsWith(gName)
+      );
+      return {
+        ...a,
+        title: 'Kumpulan Paling Qanaah',
+        notes: 'Kumpulan paling berwibawa',
+        winner: matchedGroup || 'POLLUX',
+      };
+    }
+
+    const isKadet6 =
+      a.id === 'aw-kadet-6' ||
+      (a.category === 'KADET' && a.order === 6) ||
+      a.notes.trim() === 'Trofi Khas Kem Komandan & Penilaian';
+
+    return {
+      ...a,
+      title: normalizeUnitTerminology(a.title),
+      winner: normalizeUnitTerminology(a.winner),
+      notes: isKadet6
+        ? 'Trofi & Sijil Kadet Terbaik'
+        : normalizeUnitTerminology(a.notes),
+    };
+  });
 
   const defaultOpr = INITIAL_CAMP_STATE.oprData;
   const rawOpr = raw.oprData;

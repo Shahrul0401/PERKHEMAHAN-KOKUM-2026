@@ -386,7 +386,7 @@ export const INITIAL_SCHEDULE: ScheduleSlot[] = [
     title: 'PENILAIAN DAN MAKAN TENGAHARI',
     subtitle: 'Penilaian masakan Ikhtiar Hidup (Kerjasama 30%, Penyediaan 30%, Rasa 40%) & Makan Tengahari',
     category: 'PERTANDINGAN',
-    pic: 'AJK Penilaian: Pn Juhani Binti Norman',
+    pic: 'AJK Penilaian: TN HJ SABLI BIN MAT JANEH/ EN SALLEH BIN SALIP/ PN JUHANI BINTI NORMAN',
   },
   {
     id: 'sch-2-4',
@@ -581,7 +581,7 @@ export const INITIAL_AJK_LIST: AJKMember[] = [
     id: 'ajk-18',
     category: 'PELAKSANA',
     jawatan: 'AJK PENILAIAN',
-    namaGuru: 'PN JUHANI BINTI NORMAN',
+    namaGuru: 'TN HJ SABLI BIN MAT JANEH/ EN SALLEH BIN SALIP/ PN JUHANI BINTI NORMAN',
     catatan: 'Penilaian Masakan Ikhtiar Hidup / Pemilihan Kadet Terbaik',
   },
 
@@ -766,9 +766,9 @@ export const INITIAL_AWARDS: AwardItem[] = [
     id: 'aw-umum-8',
     category: 'UMUM',
     order: 8,
-    title: 'Komandan Terbaik',
-    winner: 'MUHAMMAD RAYYAN HARITH (TKRS)',
-    notes: 'Arahan kawad jelas, tegas & berwibawa',
+    title: 'Kumpulan Paling Qanaah',
+    winner: 'POLLUX',
+    notes: 'Kumpulan paling berwibawa',
   },
 
   // KATEGORI KAWAD KAKI TERBAIK (1-3)
@@ -847,7 +847,7 @@ export const INITIAL_AWARDS: AwardItem[] = [
     order: 6,
     title: 'Peserta Terbaik Keseluruhan Kem 2026',
     winner: 'MUHAMMAD RAYYAN HARITH (Tahun 6)',
-    notes: 'Trofi Khas Kem Komandan & Penilaian',
+    notes: 'Trofi & Sijil Kadet Terbaik',
   },
 ];
 

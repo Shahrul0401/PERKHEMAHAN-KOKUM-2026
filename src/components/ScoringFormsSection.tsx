@@ -152,7 +152,7 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
           <div className="flex flex-wrap items-center gap-1.5 text-[10px] sm:text-xs text-amber-400 font-bold">
             <span>BORANG PEMARKAHAN RASMI</span>
             <span aria-hidden="true">·</span>
-            <span>AJK PENILAIAN: PN JUHANI BINTI NORMAN</span>
+            <span>AJK PENILAIAN: TN HJ SABLI BIN MAT JANEH/ EN SALLEH BIN SALIP/ PN JUHANI BINTI NORMAN</span>
           </div>
           <h2 className="mt-1 font-display font-bold text-base sm:text-xl lg:text-2xl text-white leading-snug">
             Borang Pemarkahan Ikhtiar Hidup, Kawad Kaki &amp; Carta Automatik

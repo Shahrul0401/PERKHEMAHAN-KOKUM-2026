@@ -403,7 +403,7 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
                   <Award className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 shrink-0" />
                   <span>KATEGORI UMUM (8 ANUGERAH UTAMA)</span>
                 </h3>
-                <span className="text-[11px] sm:text-xs text-slate-400">Pilih / Taip Nama Kumpulan</span>
+                <span className="text-[11px] sm:text-xs text-slate-400">Pilih Nama Kumpulan (8 Kumpulan)</span>
               </div>
 
               <div className="mt-4 divide-y divide-white/10">
@@ -425,48 +425,32 @@ export const AwardsAndOPRSection: React.FC<AwardsAndOPRSectionProps> = ({
                     </div>
 
                     <div className="w-full sm:w-64 shrink-0 flex items-center gap-1.5">
-                      {aw.order <= 7 ? (
-                        isEditUnlocked ? (
-                          <select
-                            value={
-                              state.groups.some((g) => aw.winner.startsWith(g.name))
-                                ? state.groups.find((g) => aw.winner.startsWith(g.name))!.name
-                                : aw.winner
-                            }
-                            onChange={(e) => handleWinnerChange(aw.id, e.target.value)}
-                            className="w-full min-h-[40px] px-3 py-1.5 rounded-xl glass-input text-xs font-bold text-emerald-300 cursor-pointer"
-                          >
-                            {state.groups.map((g) => (
-                              <option key={g.id} value={g.name} className="bg-slate-900 text-white">
-                                {g.name}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={onRequestUnlock}
-                            className="w-full min-h-[40px] px-3 py-1.5 rounded-xl glass-input text-xs font-bold text-emerald-300 flex items-center justify-between gap-2 cursor-pointer text-left"
-                            title="Klik untuk masukkan password kemaskini"
-                          >
-                            <span className="truncate">{aw.winner}</span>
-                            <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                          </button>
-                        )
-                      ) : (
-                        <input
-                          type="text"
-                          value={aw.winner}
-                          readOnly={!isEditUnlocked}
-                          onClick={() => {
-                            if (!isEditUnlocked) onRequestUnlock();
-                          }}
+                      {isEditUnlocked ? (
+                        <select
+                          value={
+                            state.groups.some((g) => aw.winner.startsWith(g.name))
+                              ? state.groups.find((g) => aw.winner.startsWith(g.name))!.name
+                              : state.groups[0]?.name || aw.winner
+                          }
                           onChange={(e) => handleWinnerChange(aw.id, e.target.value)}
-                          placeholder="Nama Komandan Terbaik"
-                          className={`w-full min-h-[40px] px-3 py-1.5 rounded-xl glass-input text-xs font-bold text-amber-300 ${
-                            !isEditUnlocked ? 'cursor-pointer opacity-85' : ''
-                          }`}
-                        />
+                          className="w-full min-h-[40px] px-3 py-1.5 rounded-xl glass-input text-xs font-bold text-emerald-300 cursor-pointer"
+                        >
+                          {state.groups.map((g) => (
+                            <option key={g.id} value={g.name} className="bg-slate-900 text-white">
+                              {g.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={onRequestUnlock}
+                          className="w-full min-h-[40px] px-3 py-1.5 rounded-xl glass-input text-xs font-bold text-emerald-300 flex items-center justify-between gap-2 cursor-pointer text-left"
+                          title="Klik untuk masukkan password kemaskini"
+                        >
+                          <span className="truncate">{aw.winner}</span>
+                          <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        </button>
                       )}
                     </div>
                   </div>
