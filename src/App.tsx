@@ -45,6 +45,7 @@ import {
   AwardItem,
   CampAppState,
   ExploraceStation,
+  GroupInfo,
   IkhtiarHidupScore,
   KawadKakiScore,
   OPRReportData,
@@ -187,6 +188,33 @@ function resolveOprList(
     .filter((s) => s.length > 0);
 }
 
+function syncGroupsWithAJK(
+  groups: GroupInfo[],
+  ajkList: AJKMember[]
+): GroupInfo[] {
+  const guruKumpulanList = ajkList.filter((m) => m.category === 'GURU_KUMPULAN');
+  return groups.map((grp, idx) => {
+    const grpNameUpper = grp.name.toUpperCase();
+    const matched =
+      guruKumpulanList.find((m) => m.id === `ajk-gk-${grp.number}`) ||
+      guruKumpulanList.find((m) =>
+        m.jawatan.toUpperCase().includes(grpNameUpper)
+      ) ||
+      guruKumpulanList.find((m) =>
+        new RegExp(`\\bKUMPULAN\\s*${grp.number}\\b`, 'i').test(m.jawatan)
+      ) ||
+      guruKumpulanList[idx];
+
+    if (matched && matched.namaGuru && matched.namaGuru.trim()) {
+      return {
+        ...grp,
+        guruKumpulan: matched.namaGuru.trim(),
+      };
+    }
+    return grp;
+  });
+}
+
 function normalizeCampState(raw: CampAppState): CampAppState {
   const kawadScores = raw.kawadScores || INITIAL_CAMP_STATE.kawadScores;
   const groupNames = INITIAL_CAMP_STATE.groups.map((g) => g.name);
@@ -273,8 +301,16 @@ function normalizeCampState(raw: CampAppState): CampAppState {
       })()
     : defaultOpr;
 
+  const resolvedAjkList = raw.ajkList || INITIAL_CAMP_STATE.ajkList;
+  const syncedGroups = syncGroupsWithAJK(
+    raw.groups || INITIAL_CAMP_STATE.groups,
+    resolvedAjkList
+  );
+
   return {
     ...raw,
+    groups: syncedGroups,
+    ajkList: resolvedAjkList,
     uniformUnits: INITIAL_CAMP_STATE.uniformUnits,
     kawadScores,
     schedule: (raw.schedule || INITIAL_CAMP_STATE.schedule).map((s) => ({
@@ -951,10 +987,12 @@ export default function App() {
   };
 
   const handleUpdateAJK = (ajkList: AJKMember[], desc: string) => {
+    const prev = campStateRef.current;
     const next: CampAppState = {
-      ...campStateRef.current,
+      ...prev,
       lastUpdated: new Date().toISOString(),
       ajkList,
+      groups: syncGroupsWithAJK(prev.groups, ajkList),
     };
     setCampState(next);
     recordChange(desc, next);
@@ -1281,6 +1319,7 @@ export default function App() {
             {activeTab === 'PEMARKAHAN' && (
               <ScoringFormsSection
                 groups={campState.groups}
+                ajkList={campState.ajkList}
                 uniformUnits={campState.uniformUnits}
                 stations={campState.stations}
                 exploraceScores={campState.exploraceScores}

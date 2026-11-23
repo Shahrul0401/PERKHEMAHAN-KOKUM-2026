@@ -8,6 +8,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import {
+  AJKMember,
   ExploraceScoresMap,
   ExploraceStation,
   GroupInfo,
@@ -22,6 +23,7 @@ import { AdminAccessBanner } from './AdminPasswordModal';
 
 interface ScoringFormsSectionProps {
   groups: GroupInfo[];
+  ajkList?: AJKMember[];
   uniformUnits: UniformUnit[];
   stations: ExploraceStation[];
   exploraceScores: ExploraceScoresMap;
@@ -36,6 +38,7 @@ interface ScoringFormsSectionProps {
 
 export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
   groups,
+  ajkList = [],
   uniformUnits,
   stations,
   exploraceScores,
@@ -48,6 +51,24 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
   onUpdateKawad,
 }) => {
   const [activeTab, setActiveTab] = useState<'IKHTIAR' | 'KAWAD' | 'CHARTS'>('IKHTIAR');
+
+  // Resolve Guru Kumpulan / Fasi name dynamically from Senarai AJK (sub-tab Guru Kumpulan)
+  const guruKumpulanAjk = ajkList.filter((m) => m.category === 'GURU_KUMPULAN');
+  const getGuruKumpulanName = (grp: GroupInfo, idx: number): string => {
+    const grpNameUpper = grp.name.toUpperCase();
+    const matched =
+      guruKumpulanAjk.find((m) => m.id === `ajk-gk-${grp.number}`) ||
+      guruKumpulanAjk.find((m) => m.jawatan.toUpperCase().includes(grpNameUpper)) ||
+      guruKumpulanAjk.find((m) =>
+        new RegExp(`\\bKUMPULAN\\s*${grp.number}\\b`, 'i').test(m.jawatan)
+      ) ||
+      guruKumpulanAjk[idx];
+
+    if (matched && matched.namaGuru && matched.namaGuru.trim()) {
+      return matched.namaGuru.trim();
+    }
+    return grp.guruKumpulan;
+  };
 
   // Helper to update Ikhtiar Hidup field safely (requires admin password unlock)
   const handleIkhtiarField = (
@@ -229,13 +250,14 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
 
           {/* Mobile Card Layout (No Horizontal Overflow on Mobile) */}
           <div className="mt-3.5 space-y-3 md:hidden">
-            {groups.map((grp) => {
+            {groups.map((grp, idx) => {
               const sc = ikhtiarScores[grp.id] || {
                 kerjasama: 0,
                 penyediaan: 0,
                 rasa: 0,
               };
               const total = sc.kerjasama + sc.penyediaan + sc.rasa;
+              const guruName = getGuruKumpulanName(grp, idx);
               return (
                 <div
                   key={grp.id}
@@ -254,7 +276,7 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
                           {grp.name}
                         </div>
                         <div className="text-[10px] text-slate-400 truncate">
-                          {grp.guruKumpulan}
+                          {guruName}
                         </div>
                       </div>
                     </div>
@@ -346,13 +368,14 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/10 text-xs sm:text-sm">
-                {groups.map((grp) => {
+                {groups.map((grp, idx) => {
                   const sc = ikhtiarScores[grp.id] || {
                     kerjasama: 0,
                     penyediaan: 0,
                     rasa: 0,
                   };
                   const total = sc.kerjasama + sc.penyediaan + sc.rasa;
+                  const guruName = getGuruKumpulanName(grp, idx);
                   return (
                     <tr key={grp.id} className="hover:bg-white/[0.03]">
                       <td className="p-3 text-center font-mono font-bold text-slate-300 border-r border-white/10 tabular-nums">
@@ -360,7 +383,7 @@ export const ScoringFormsSection: React.FC<ScoringFormsSectionProps> = ({
                       </td>
                       <td className="p-3 border-r border-white/10">
                         <div className="font-display font-bold text-white">{grp.name}</div>
-                        <div className="text-[11px] text-slate-400">{grp.guruKumpulan}</div>
+                        <div className="text-[11px] text-slate-400">{guruName}</div>
                       </td>
 
                       {/* Kerjasama (30%) */}
